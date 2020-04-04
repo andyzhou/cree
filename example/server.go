@@ -6,6 +6,12 @@ import (
 	"log"
 )
 
+/*
+ * server
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
+ */
+
 func OnConnAdd(conn iface.IConnect) {
 	log.Println("add conn:", conn)
 }

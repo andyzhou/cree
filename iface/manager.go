@@ -2,6 +2,8 @@ package iface
 
 /*
  * interface for manager
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
  */
 
  type IManager interface {

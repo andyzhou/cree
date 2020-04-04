@@ -12,6 +12,8 @@ import (
 
 /*
  * face for connect
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
  */
 
  //inter macro define

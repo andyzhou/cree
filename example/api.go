@@ -8,6 +8,8 @@ import (
 
 /*
  * Testing api
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
  */
 
  type TestApi struct {

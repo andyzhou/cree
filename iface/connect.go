@@ -4,6 +4,8 @@ import "net"
 
 /*
  * interface for connect
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
  */
 
  type IConnect interface {

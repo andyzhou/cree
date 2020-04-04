@@ -8,6 +8,8 @@ import (
 
 /*
  * face for connect manager
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
  */
 
  //face info

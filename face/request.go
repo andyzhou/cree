@@ -4,6 +4,8 @@ import "github.com/andyzhou/cree/iface"
 
 /*
  * face for request
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
  */
 
  //face info

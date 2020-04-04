@@ -9,6 +9,8 @@ import (
 
 /*
  * face for data packet
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
  */
 
  //macro define

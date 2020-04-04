@@ -2,6 +2,8 @@ package iface
 
 /*
  * server interface
+ * @author <AndyZhou>
+ * @mail <diudiu8848@163.com>
  */
 
  //interface of server
