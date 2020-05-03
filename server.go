@@ -157,9 +157,6 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 		//process new connect
 		connId++
 		face.NewConnect(s, conn, connId, s.handler)
-
-		//spawn new process for new connection
-		//go newConnect.Start()
 	}
 	return true
 }

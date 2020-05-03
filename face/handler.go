@@ -62,7 +62,7 @@ func NewHandlerWorker(handler iface.IHandler) *HandlerWorker {
 	this := &HandlerWorker{
 		handler:handler,
 		queueChan:make(chan iface.IRequest, HandlerQueueChanSize),
-		closeChan:make(chan bool),
+		closeChan:make(chan bool, 1),
 	}
 
 	//spawn main process
@@ -93,6 +93,13 @@ func (f *Handler) SendToQueue(req iface.IRequest) {
 	if worker == nil {
 		return
 	}
+
+	//try catch panic
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("Handler::SendToQueue panic happened, err:", err)
+		}
+	}()
 
 	//send to worker queue
 	worker.queueChan <- req
@@ -237,8 +244,6 @@ func (f *Handler) getRandomVal(maxVal int) int {
 //inter init
 func (f *Handler) interInit() {
 	//init worker pool
-	f.Lock()
-	defer f.Unlock()
 	for i := 1; i <= f.queueSize; i++ {
 		worker := NewHandlerWorker(f)
 		f.handlerQueue[i] = worker

@@ -38,9 +38,6 @@ func main() {
 	//register router for message
 	server.AddRouter(1, &TestApi{})
 
-	//client test
-	//go ClientTest(host, port, 1)
-
 	//start service
 	server.Start()
 }
