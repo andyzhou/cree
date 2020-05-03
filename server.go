@@ -68,6 +68,12 @@ func (s *Server) AddRouter(messageId uint32, router iface.IRouter) {
 	s.handler.AddRouter(messageId, router)
 }
 
+//register redirect router
+//used for unsupported message id process
+func (s *Server) RegisterRedirect(router iface.IRouter) {
+	s.handler.RegisterRedirect(router)
+}
+
 //get conn manager
 func (s *Server) GetManager() iface.IManager {
 	return s.manager

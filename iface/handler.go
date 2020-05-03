@@ -10,5 +10,6 @@ package iface
  	SetQueueSize(int)
  	DoMessageHandle(IRequest) error
  	AddRouter(uint32,IRouter) error
+ 	RegisterRedirect(IRouter) error
  	SendToQueue(IRequest)
  }

@@ -11,6 +11,7 @@ package iface
  	Start()
  	Stop()
 	AddRouter(uint32,IRouter)
+ 	RegisterRedirect(IRouter)
  	GetManager()IManager
  	//setting
  	SetMaxConnects(int)

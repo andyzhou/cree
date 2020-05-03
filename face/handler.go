@@ -29,6 +29,7 @@ import (
  //face info
  type Handler struct {
  	queueSize int
+ 	redirectRouter iface.IRouter
  	handlerMap map[uint32]iface.IRouter
  	handlerQueue map[int]*HandlerWorker
  	sync.RWMutex
@@ -103,6 +104,15 @@ func (f *Handler) DoMessageHandle(req iface.IRequest) error {
 	messageId := req.GetMessage().GetId()
 	handler, ok := f.handlerMap[messageId]
 	if !ok {
+		//check redirect router
+		if f.redirectRouter != nil {
+			//call relate handle
+			f.redirectRouter.PreHandle(req)
+			f.redirectRouter.Handle(req)
+			f.redirectRouter.PostHandle(req)
+			return nil
+		}
+
 		tips := fmt.Sprintf("no handler for message id:%d", messageId)
 		log.Println("Handler::DoMessageHandle ", tips)
 		return errors.New(tips)
@@ -135,6 +145,18 @@ func (f *Handler) AddRouter(messageId uint32, router iface.IRouter) error {
 	defer f.Unlock()
 	f.handlerMap[messageId] = router
 
+	return nil
+}
+
+//register redirect for unsupported message id
+//used for all requests redirect to handler
+func (f *Handler) RegisterRedirect(router iface.IRouter) error {
+	if router == nil {
+		return errors.New("invalid parameter")
+	}
+
+	//set router
+	f.redirectRouter = router
 	return nil
 }
 
