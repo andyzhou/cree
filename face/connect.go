@@ -52,9 +52,6 @@ func NewConnect(
 		propertyMap:make(map[string]interface{}),
 	}
 
-	//add into manager
-	this.tcpServer.GetManager().Add(this)
-
 	//spawn main process
 	go this.runMainProcess()
 

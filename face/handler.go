@@ -50,10 +50,8 @@ func NewHandler() *Handler {
 		handlerMap:make(map[uint32]iface.IRouter),
 		handlerQueue:make(map[int]*HandlerWorker),
 	}
-
 	//inter init
 	this.interInit()
-
 	return this
 }
 
@@ -64,10 +62,8 @@ func NewHandlerWorker(handler iface.IHandler) *HandlerWorker {
 		queueChan:make(chan iface.IRequest, HandlerQueueChanSize),
 		closeChan:make(chan bool, 1),
 	}
-
 	//spawn main process
 	go this.runMainProcess()
-
 	return this
 }
 
@@ -98,6 +94,7 @@ func (f *Handler) SendToQueue(req iface.IRequest) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("Handler::SendToQueue panic happened, err:", err)
+			return
 		}
 	}()
 
@@ -190,6 +187,10 @@ func (sh *HandlerWorker) runMainProcess() {
 			needQuit = true
 		}
 	}
+
+	//close chan
+	close(sh.queueChan)
+	close(sh.closeChan)
 }
 
 //resize handler queue

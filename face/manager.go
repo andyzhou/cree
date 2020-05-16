@@ -14,7 +14,7 @@ import (
 
  //face info
  type Manager struct {
- 	connectMap map[uint32]iface.IConnect
+ 	connectMap map[uint32]iface.IConnect `connectId -> IConnect`
  	sync.RWMutex
  }
  

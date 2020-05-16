@@ -18,6 +18,7 @@ import (
  //inter macro define
  const (
  	DefaultMaxConnects = 1024
+ 	DefaultIpVersion = "tcp"
  )
 
  //face info
@@ -27,16 +28,24 @@ import (
  	ip string
  	port int
  	maxConnect int
+ 	needQuit bool
  	handler iface.IHandler
  	manager iface.IManager
  	//hook
 	onConnStart func(iface.IConnect)
  	onConnStop func(iface.IConnect)
  	wg sync.WaitGroup
+ 	sync.RWMutex
  }
 
  //construct
+ //ipVersion like "tcp,tcp4,tcp6"
 func NewServer(ipVersion, ip string, port int) *Server {
+	//check and set default value
+	if ipVersion == "" {
+		ipVersion = DefaultIpVersion
+	}
+
 	//self init
 	this := &Server{
 		ipVersion:ipVersion,
@@ -59,6 +68,7 @@ func (s *Server) Start() {
 
 //stop
 func (s *Server) Stop() {
+	s.needQuit = true
 	s.wg.Done()
 	s.manager.Clear()
 }
@@ -141,6 +151,10 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 	}
 
 	for {
+		if s.needQuit {
+			break
+		}
+
 		//get tcp connect
 		conn, err = listener.AcceptTCP()
 		if err != nil {
@@ -156,28 +170,33 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 
 		//process new connect
 		connId++
-		face.NewConnect(s, conn, connId, s.handler)
+		connect := face.NewConnect(s, conn, connId, s.handler)
+
+		//add connect into manager
+		s.GetManager().Add(connect)
 	}
 	return true
 }
 
 //inter init
-func (s *Server) interInit() {
+func (s *Server) interInit() bool {
 	//get tcp addr
 	address := fmt.Sprintf("%s:%d", s.ip, s.port)
 	addr, err := net.ResolveTCPAddr(s.ipVersion, address)
 	if err != nil {
 		log.Println("resolve tcp addr failed, err:", err.Error())
-		return
+		return false
 	}
 
 	//begin listen
 	listener, err := net.ListenTCP(s.ipVersion, addr)
 	if err != nil {
 		log.Println("listen on ", address, " failed, err:", err.Error())
-		return
+		return false
 	}
 
 	//watch tcp connect
 	go s.watchConn(listener)
+
+	return true
 }
