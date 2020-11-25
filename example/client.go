@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"github.com/andyzhou/cree/face"
 	"net"
-	"fmt"
 	"time"
 )
 

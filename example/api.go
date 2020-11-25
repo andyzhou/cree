@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"github.com/andyzhou/cree/face"
 	"github.com/andyzhou/cree/iface"
-	"fmt"
 )
 
 /*

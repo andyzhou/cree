@@ -1,13 +1,13 @@
 package face
 
 import (
-	"github.com/andyzhou/cree/iface"
-	"net"
-	"sync"
-	"io"
-	"log"
 	"errors"
 	"fmt"
+	"github.com/andyzhou/cree/iface"
+	"io"
+	"log"
+	"net"
+	"sync"
 )
 
 /*
@@ -18,7 +18,7 @@ import (
 
  //inter macro define
  const (
- 	WriteChanSize = 128
+ 	WriteChanSize = 256
  )
 
  //face info

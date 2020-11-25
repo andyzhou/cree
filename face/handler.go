@@ -1,13 +1,13 @@
 package face
 
 import (
-	"github.com/andyzhou/cree/iface"
 	"errors"
-	"sync"
 	"fmt"
-	"math/rand"
-	"time"
+	"github.com/andyzhou/cree/iface"
 	"log"
+	"math/rand"
+	"sync"
+	"time"
 )
 
 /*

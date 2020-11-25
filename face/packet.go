@@ -1,8 +1,8 @@
 package face
 
 import (
-	"encoding/binary"
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 )
