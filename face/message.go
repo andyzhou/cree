@@ -9,6 +9,7 @@ package face
 //face info
 type Message struct {
 	Len uint32
+	Kind uint32
 	Id uint32
 	Data []byte
 }
@@ -29,6 +30,10 @@ func (f *Message) GetLen() uint32 {
 	return f.Len
 }
 
+func (f *Message) GetKind() uint32 {
+	return f.Kind
+}
+
 func (f *Message) GetId() uint32 {
 	return f.Id
 }
@@ -40,6 +45,10 @@ func (f *Message) GetData() []byte {
 //set relate data
 func (f *Message) SetId(id uint32) {
 	f.Id = id
+}
+
+func (f *Message) SetKind(kind uint32) {
+	f.Kind = kind
 }
 
 func (f *Message) SetLen(len uint32) {

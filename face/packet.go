@@ -15,7 +15,7 @@ import (
 
  //macro define
  const (
- 	PacketHeadSize = 8 //dataLen(4byte) + messageId(4byte)
+ 	PacketHeadSize = 12 //dataLen(4byte) + messageKind(4byte) + messageId(4byte)
  	PacketMaxSize = 4096 //4KB
  )
 
@@ -37,6 +37,7 @@ func NewPacket() *Packet {
 //unpack data, just for message length and id from header
 func (f *Packet) UnPack(data []byte) (*Message, error) {
 	var (
+		messageKind uint32
 		messageId uint32
 		messageLen uint32
 		err error
@@ -56,6 +57,12 @@ func (f *Packet) UnPack(data []byte) (*Message, error) {
 		return nil, err
 	}
 
+	//read message kind
+	err = binary.Read(dataBuff, binary.LittleEndian, &messageKind)
+	if err != nil {
+		return nil, err
+	}
+
 	//read message id
 	err = binary.Read(dataBuff, binary.LittleEndian, &messageId)
 	if err != nil {
@@ -70,6 +77,7 @@ func (f *Packet) UnPack(data []byte) (*Message, error) {
 
 	//init message data
 	message := NewMessage()
+	message.SetKind(messageKind)
 	message.SetId(messageId)
 	message.SetLen(messageLen)
 
@@ -92,6 +100,12 @@ func (f *Packet) Pack(message *Message) ([]byte, error) {
 
 	//write length
 	err = binary.Write(dataBuff, binary.LittleEndian, message.GetLen())
+	if err != nil {
+		return nil, err
+	}
+
+	//write kind
+	err = binary.Write(dataBuff, binary.LittleEndian, message.GetKind())
 	if err != nil {
 		return nil, err
 	}
