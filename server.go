@@ -66,14 +66,6 @@ func (s *Server) Start() {
 	s.wg.Wait()
 }
 
-func (s *Server) StartWithWG(wg *sync.WaitGroup) {
-	if wg == nil {
-		return
-	}
-	s.wg = *wg
-	s.Start()
-}
-
 //stop
 func (s *Server) Stop() {
 	s.needQuit = true
