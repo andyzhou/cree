@@ -1,11 +1,11 @@
 package cree
 
 import (
-	"github.com/andyzhou/cree/iface"
-	"github.com/andyzhou/cree/face"
-	"net"
 	"fmt"
+	"github.com/andyzhou/cree/face"
+	"github.com/andyzhou/cree/iface"
 	"log"
+	"net"
 	"sync"
 )
 
