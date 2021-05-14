@@ -7,6 +7,7 @@ package iface
  */
 
  type IHandler interface {
+ 	Quit()
  	SetQueueSize(int)
  	DoMessageHandle(IRequest) error
  	AddRouter(uint32,IRouter) error

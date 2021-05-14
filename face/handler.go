@@ -23,7 +23,7 @@ import (
  	HandlerQueueSizeMax = 128
 
  	//for chan
- 	HandlerQueueChanSize = 128
+ 	HandlerQueueChanSize = 1024
  )
 
  //face info
@@ -70,6 +70,25 @@ func NewHandlerWorker(handler iface.IHandler) *HandlerWorker {
 /////////
 //api
 /////////
+
+//handler worker quit
+func (sh *HandlerWorker) Quit() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("HandlerWorker:Quit panic, err:", err)
+		}
+	}()
+	sh.closeChan <- true
+}
+
+//handler quit
+func (f *Handler) Quit() {
+	if f.handlerQueue != nil {
+		for _, hq := range f.handlerQueue {
+			hq.Quit()
+		}
+	}
+}
 
 //set and modify queue size
 func (f *Handler) SetQueueSize(queueSize int) {
@@ -174,6 +193,17 @@ func (sh *HandlerWorker) runMainProcess() {
 		req iface.IRequest
 		isOk, needQuit bool
 	)
+
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("HandlerWorker:mainProcess panic, err:", err)
+		}
+		//close chan
+		close(sh.queueChan)
+		close(sh.closeChan)
+	}()
+
+	//loop
 	for {
 		if needQuit && len(sh.queueChan) <= 0 {
 			break
@@ -187,10 +217,6 @@ func (sh *HandlerWorker) runMainProcess() {
 			needQuit = true
 		}
 	}
-
-	//close chan
-	close(sh.queueChan)
-	close(sh.closeChan)
 }
 
 //resize handler queue

@@ -18,7 +18,7 @@ import (
 
  //inter macro define
  const (
- 	WriteChanSize = 256
+ 	WriteChanSize = 1024
  )
 
  //face info
@@ -48,7 +48,7 @@ func NewConnect(
 		connId:connectId,
 		handler:handler,
 		messageChan:make(chan []byte, WriteChanSize),
-		closeChan:make(chan bool),
+		closeChan:make(chan bool, 1),
 		propertyMap:make(map[string]interface{}),
 	}
 
@@ -115,9 +115,13 @@ func (c *Connect) Stop() {
 		if err := recover(); err != nil {
 			log.Println("cree:Connect::Stop, panic happened, err:", err)
 		}
-	}()
+		//close connect
+		c.conn.Close()
 
-	defer c.conn.Close()
+		//close chan
+		close(c.messageChan)
+		close(c.closeChan)
+	}()
 
 	c.isClosed = true
 
@@ -129,10 +133,6 @@ func (c *Connect) Stop() {
 
 	//remove from manager
 	c.tcpServer.GetManager().Remove(c)
-
-	//close chan
-	close(c.messageChan)
-	close(c.closeChan)
 }
 
 //get remote client address
@@ -208,7 +208,13 @@ func (c *Connect) startRead() {
 	)
 
 	//defer function
-	defer c.Stop()
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("Connect:startRead panic, err:", err)
+		}
+		//stop connect
+		c.Stop()
+	}()
 
 	//init header
 	header := make([]byte, packet.GetHeadLen())
@@ -256,6 +262,16 @@ func (c *Connect) startWrite() {
 		isOk, needQuit bool
 	)
 
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("Connect:startWrite panic, err:", err)
+		}
+		//close chan
+		close(c.messageChan)
+		close(c.closeChan)
+	}()
+
+	//loop
 	for {
 		if needQuit && len(c.messageChan) <= 0 {
 			break
