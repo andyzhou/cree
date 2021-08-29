@@ -13,6 +13,7 @@ package iface
 	AddRouter(uint32,IRouter)
  	RegisterRedirect(IRouter)
  	GetManager()IManager
+ 	GetPacket()IPacket
  	//setting
  	SetMaxConnects(int)
  	SetHandlerQueues(int)

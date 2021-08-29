@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/andyzhou/cree/iface"
 )
 
 /*
@@ -21,12 +22,15 @@ import (
 
  //face info
  type Packet struct {
+	 littleEndian bool
  }
 
  //construct
 func NewPacket() *Packet {
 	//self init
-	this := &Packet{}
+	this := &Packet{
+		littleEndian: true,
+	}
 	return this
 }
 
@@ -34,8 +38,13 @@ func NewPacket() *Packet {
 //api
 ////////
 
+//set little endian
+func (f *Packet) SetLittleEndian(littleEndian bool) {
+	f.littleEndian = littleEndian
+}
+
 //unpack data, just for message length and id from header
-func (f *Packet) UnPack(data []byte) (*Message, error) {
+func (f *Packet) UnPack(data []byte) (iface.IMessage, error) {
 	var (
 		messageKind uint32
 		messageId uint32
@@ -85,7 +94,7 @@ func (f *Packet) UnPack(data []byte) (*Message, error) {
 }
 
 //pack data
-func (f *Packet) Pack(message *Message) ([]byte, error) {
+func (f *Packet) Pack(message iface.IMessage) ([]byte, error) {
 	var (
 		err error
 	)

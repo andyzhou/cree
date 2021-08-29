@@ -24,6 +24,7 @@ import (
  //face info
  type Connect struct {
  	tcpServer iface.IServer //parent tcp server
+ 	packet iface.IPacket //parent packet interface
  	connId uint32
  	isClosed bool
  	conn *net.TCPConn //socket tcp connect
@@ -44,6 +45,7 @@ func NewConnect(
 	//self init
 	this := &Connect{
 		tcpServer:server,
+		packet: server.GetPacket(),
 		conn:conn,
 		connId:connectId,
 		handler:handler,
@@ -76,8 +78,7 @@ func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
 	message.SetData(data)
 
 	//create message packet
-	packet := NewPacket()
-	byteData, err := packet.Pack(message)
+	byteData, err := c.packet.Pack(message)
 	if err != nil {
 		return
 	}
@@ -202,8 +203,7 @@ func (c *Connect) runMainProcess() {
 func (c *Connect) startRead() {
 	var (
 		data []byte
-		packet = NewPacket()
-		message = NewMessage()
+		message iface.IMessage
 		err error
 	)
 
@@ -217,7 +217,7 @@ func (c *Connect) startRead() {
 	}()
 
 	//init header
-	header := make([]byte, packet.GetHeadLen())
+	header := make([]byte, c.packet.GetHeadLen())
 
 	//read data in the loop
 	for {
@@ -229,7 +229,7 @@ func (c *Connect) startRead() {
 		}
 
 		//unpack header
-		message, err = packet.UnPack(header)
+		message, err = c.packet.UnPack(header)
 		if err != nil {
 			log.Println("unpack message failed, err:", err.Error())
 			break

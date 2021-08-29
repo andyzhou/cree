@@ -29,6 +29,8 @@ import (
  	port int
  	maxConnect int
  	needQuit bool
+ 	littleEndian bool
+ 	packet iface.IPacket
  	handler iface.IHandler
  	manager iface.IManager
  	//hook
@@ -54,6 +56,7 @@ func NewServer(ipVersion, ip string, port int) *Server {
 		maxConnect:DefaultMaxConnects,
 		handler:face.NewHandler(),
 		manager:face.NewManager(),
+		packet: face.NewPacket(),
 	}
 	//inter init
 	this.interInit()
@@ -137,6 +140,14 @@ func (s *Server) CallOnConnStop(conn iface.IConnect) {
 	if s.onConnStop != nil {
 		s.onConnStop(conn)
 	}
+}
+
+func (s *Server) SetLittleEndian(littleEndian bool) {
+	s.littleEndian = littleEndian
+}
+
+func (s *Server) GetPacket() iface.IPacket {
+	return s.packet
 }
 
 ////////////////
