@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/andyzhou/cree/face"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -65,4 +66,22 @@ func ClientTest(host string, port, clients int) {
 	for i := 1; i <= clients; i++ {
 		go CreateOneClient(addr, i)
 	}
+}
+
+//main
+func main() {
+	var (
+		wg sync.WaitGroup
+		host = "127.0.0.1"
+		port = 7800
+		clients = 3
+	)
+
+	//wg
+	wg.Add(1)
+
+	//try connect server
+	ClientTest(host, port, clients)
+
+	wg.Wait()
 }

@@ -267,8 +267,8 @@ func (c *Connect) startWrite() {
 			log.Println("Connect:startWrite panic, err:", err)
 		}
 		//close chan
-		close(c.messageChan)
-		close(c.closeChan)
+		//close(c.messageChan)
+		//close(c.closeChan)
 	}()
 
 	//loop
