@@ -25,7 +25,7 @@ func main() {
 	port := 7800
 
 	//init server
-	server := cree.NewServer("tcp4", host, port)
+	server := cree.NewServer(host, port, "tcp4")
 
 	//register hook for tcp connect start and stop
 	server.SetOnConnStart(OnConnAdd)

@@ -17,14 +17,15 @@ import (
 
  //inter macro define
  const (
+ 	DefaultMinConnects = 128
  	DefaultMaxConnects = 1024
- 	DefaultIpVersion = "tcp"
+ 	DefaultTcpVersion = "tcp"
  )
 
  //face info
  type Server struct {
  	//basic
- 	ipVersion string //tcp4 or others
+ 	tcpVersion string //tcp4 or others
  	ip string
  	port int
  	maxConnect int
@@ -41,19 +42,42 @@ import (
  }
 
  //construct
- //ipVersion like "tcp,tcp4,tcp6"
-func NewServer(ipVersion, ip string, port int) *Server {
+ //extraParas, first is tcp kind, second is max connects.
+func NewServer(
+			ip string,
+			port int,
+			extraParas ...interface{},
+		) *Server {
+	var (
+		tcpVersion string
+		maxConnects int
+	)
+
 	//check and set default value
-	if ipVersion == "" {
-		ipVersion = DefaultIpVersion
+	tcpVersion = DefaultTcpVersion
+	maxConnects = DefaultMinConnects
+	if extraParas != nil && len(extraParas) > 0 {
+		//get tcp kind
+		tcpVersion, _ = extraParas[0].(string)
+
+		//get max connects
+		if len(extraParas) > 1 {
+			maxConnects, _ = extraParas[1].(int)
+			if maxConnects <= 0 {
+				maxConnects = DefaultMinConnects
+			}
+			if maxConnects > DefaultMaxConnects {
+				maxConnects = DefaultMaxConnects
+			}
+		}
 	}
 
 	//self init
 	this := &Server{
-		ipVersion:ipVersion,
+		tcpVersion:tcpVersion,
 		ip:ip,
 		port:port,
-		maxConnect:DefaultMaxConnects,
+		maxConnect:maxConnects,
 		handler:face.NewHandler(),
 		manager:face.NewManager(),
 		packet: face.NewPacket(),
@@ -198,14 +222,14 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 func (s *Server) interInit() bool {
 	//get tcp addr
 	address := fmt.Sprintf("%s:%d", s.ip, s.port)
-	addr, err := net.ResolveTCPAddr(s.ipVersion, address)
+	addr, err := net.ResolveTCPAddr(s.tcpVersion, address)
 	if err != nil {
 		log.Println("resolve tcp addr failed, err:", err.Error())
 		return false
 	}
 
 	//begin listen
-	listener, err := net.ListenTCP(s.ipVersion, addr)
+	listener, err := net.ListenTCP(s.tcpVersion, addr)
 	if err != nil {
 		log.Println("listen on ", address, " failed, err:", err.Error())
 		return false
