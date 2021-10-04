@@ -22,9 +22,9 @@ func CBForRead(data []byte) bool {
 }
 
 //test write
-func ClientWrite(client *cree.Client, wg *sync.WaitGroup) {
+func ClientWrite(client *cree.Client, testTimes int, wg *sync.WaitGroup) {
 	messageId := uint32(1)
-	for i := 1; i <= 50; i++ {
+	for i := 1; i <= testTimes; i++ {
 		//send packet data
 		data := fmt.Sprintf("time:%d", time.Now().Unix())
 		err := client.SendPacket(messageId, []byte(data), true)
@@ -42,6 +42,7 @@ func main() {
 		wg sync.WaitGroup
 		host = "127.0.0.1"
 		port = 7800
+		testTimes = 50
 	)
 
 	//wg
@@ -63,7 +64,7 @@ func main() {
 
 	//spawn write testing
 	log.Println("client start")
-	go ClientWrite(client, &wg)
+	go ClientWrite(client, testTimes, &wg)
 
 	wg.Wait()
 	log.Println("client closed")
