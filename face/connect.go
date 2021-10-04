@@ -266,9 +266,8 @@ func (c *Connect) startWrite() {
 		if err := recover(); err != nil {
 			log.Println("Connect:startWrite panic, err:", err)
 		}
-		//close chan
-		//close(c.messageChan)
-		//close(c.closeChan)
+		//stop connect
+		c.Stop()
 	}()
 
 	//loop
