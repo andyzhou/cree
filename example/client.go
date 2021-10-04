@@ -22,14 +22,18 @@ func CBForRead(data []byte) bool {
 }
 
 //test write
-func ClientWrite(client *cree.Client) {
-	//send packet data
+func ClientWrite(client *cree.Client, wg *sync.WaitGroup) {
 	messageId := uint32(1)
-	data := fmt.Sprintf("time:%d", time.Now().Unix())
-	err := client.SendPacket(messageId, []byte(data), true)
-	if err != nil {
-		log.Println("ClientWrite failed, err:", err.Error())
+	for i := 1; i <= 50; i++ {
+		//send packet data
+		data := fmt.Sprintf("time:%d", time.Now().Unix())
+		err := client.SendPacket(messageId, []byte(data), true)
+		if err != nil {
+			log.Println("ClientWrite failed, err:", err.Error())
+		}
+		time.Sleep(time.Second)
 	}
+	wg.Done()
 }
 
 //main
@@ -58,7 +62,9 @@ func main() {
 	}
 
 	//spawn write testing
-	go ClientWrite(client)
+	log.Println("client start")
+	go ClientWrite(client, &wg)
 
 	wg.Wait()
+	log.Println("client closed")
 }
