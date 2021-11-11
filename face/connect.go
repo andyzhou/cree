@@ -292,7 +292,7 @@ func (c *Connect) startWrite() {
 			}
 		case <- c.closeChan:
 			{
-				needQuit = true
+				return
 			}
 		}
 	}

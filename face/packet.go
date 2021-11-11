@@ -23,6 +23,7 @@ import (
  //face info
  type Packet struct {
 	 littleEndian bool
+	 byteOrder binary.ByteOrder
  }
 
  //construct
@@ -30,6 +31,7 @@ func NewPacket() *Packet {
 	//self init
 	this := &Packet{
 		littleEndian: true,
+		byteOrder: binary.LittleEndian,
 	}
 	return this
 }
@@ -41,6 +43,11 @@ func NewPacket() *Packet {
 //set little endian
 func (f *Packet) SetLittleEndian(littleEndian bool) {
 	f.littleEndian = littleEndian
+	if littleEndian {
+		f.byteOrder = binary.LittleEndian
+	}else{
+		f.byteOrder = binary.BigEndian
+	}
 }
 
 //unpack data, just for message length and id from header
@@ -61,19 +68,19 @@ func (f *Packet) UnPack(data []byte) (iface.IMessage, error) {
 	dataBuff := bytes.NewReader(data)
 
 	//read length
-	err = binary.Read(dataBuff, binary.LittleEndian, &messageLen)
+	err = binary.Read(dataBuff, f.byteOrder, &messageLen)
 	if err != nil {
 		return nil, err
 	}
 
 	//read message kind
-	err = binary.Read(dataBuff, binary.LittleEndian, &messageKind)
+	err = binary.Read(dataBuff, f.byteOrder, &messageKind)
 	if err != nil {
 		return nil, err
 	}
 
 	//read message id
-	err = binary.Read(dataBuff, binary.LittleEndian, &messageId)
+	err = binary.Read(dataBuff, f.byteOrder, &messageId)
 	if err != nil {
 		return nil, err
 	}
@@ -108,25 +115,25 @@ func (f *Packet) Pack(message iface.IMessage) ([]byte, error) {
 	dataBuff := bytes.NewBuffer(nil)
 
 	//write length
-	err = binary.Write(dataBuff, binary.LittleEndian, message.GetLen())
+	err = binary.Write(dataBuff, f.byteOrder, message.GetLen())
 	if err != nil {
 		return nil, err
 	}
 
 	//write kind
-	err = binary.Write(dataBuff, binary.LittleEndian, message.GetKind())
+	err = binary.Write(dataBuff, f.byteOrder, message.GetKind())
 	if err != nil {
 		return nil, err
 	}
 
 	//write message id
-	err = binary.Write(dataBuff, binary.LittleEndian, message.GetId())
+	err = binary.Write(dataBuff, f.byteOrder, message.GetId())
 	if err != nil {
 		return nil, err
 	}
 
 	//write data
-	err = binary.Write(dataBuff, binary.LittleEndian, message.GetData())
+	err = binary.Write(dataBuff, f.byteOrder, message.GetData())
 	if err != nil {
 		return nil, err
 	}

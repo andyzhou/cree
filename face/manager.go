@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/andyzhou/cree/iface"
 	"sync"
+	"sync/atomic"
 )
 
 /*
@@ -15,8 +16,7 @@ import (
  //face info
  type Manager struct {
  	connectMap *sync.Map //connectId -> IConnect
- 	connects int
- 	sync.RWMutex
+ 	connects int32
  }
  
  //construct
@@ -30,7 +30,6 @@ func NewManager() *Manager {
 
 //get connect by id
 func (m *Manager) Get(connId uint32) (iface.IConnect, error) {
-	//conn, ok := m.connectMap[connId]
 	v, ok := m.connectMap.Load(connId)
 	if !ok {
 		return nil, errors.New("connect not found")
@@ -43,7 +42,7 @@ func (m *Manager) Get(connId uint32) (iface.IConnect, error) {
 }
 
 //get map length
-func (m *Manager) GetLen() int {
+func (m *Manager) GetLen() int32 {
 	return m.connects
 }
 
@@ -65,13 +64,14 @@ func (m *Manager) Clear() {
 	m.connectMap.Range(subFunc)
 }
 
-//remove
+//remove connect
 func (m *Manager) Remove(conn iface.IConnect) {
 	//remove from map with locker
 	if m.connectMap == nil {
 		return
 	}
 	m.connectMap.Delete(conn.GetConnId())
+	atomic.AddInt32(&m.connects, -1)
 }
 
 //add connect
@@ -84,12 +84,9 @@ func (m *Manager) Add(conn iface.IConnect)  {
 		return
 	}
 	//add into map with locker
-	m.Lock()
-	defer m.Unlock()
 	m.connectMap.Store(conn.GetConnId(), conn)
-	m.connects++
+	atomic.AddInt32(&m.connects, 1)
 }
-
 
 ////////////////
 //private func

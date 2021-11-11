@@ -15,7 +15,7 @@ package iface
  	GetManager()IManager
  	GetPacket()IPacket
  	//setting
- 	SetMaxConnects(int)
+ 	SetMaxConnects(int32)
  	SetHandlerQueues(int)
  	//set hook
  	SetOnConnStart(func(IConnect))

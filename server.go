@@ -28,7 +28,7 @@ import (
  	tcpVersion string //tcp4 or others
  	ip string
  	port int
- 	maxConnect int
+ 	maxConnect int32
  	needQuit bool
  	littleEndian bool
  	packet iface.IPacket
@@ -50,7 +50,7 @@ func NewServer(
 		) *Server {
 	var (
 		tcpVersion string
-		maxConnects int
+		maxConnects int32
 	)
 
 	//check and set default value
@@ -62,7 +62,7 @@ func NewServer(
 
 		//get max connects
 		if len(extraParas) > 1 {
-			maxConnects, _ = extraParas[1].(int)
+			maxConnects, _ = extraParas[1].(int32)
 			if maxConnects <= 0 {
 				maxConnects = DefaultMinConnects
 			}
@@ -122,7 +122,7 @@ func (s *Server) GetManager() iface.IManager {
 }
 
 //set max connections
-func (s *Server) SetMaxConnects(maxConnects int) {
+func (s *Server) SetMaxConnects(maxConnects int32) {
 	if maxConnects <= 0 {
 		return
 	}
@@ -137,7 +137,7 @@ func (s *Server) SetHandlerQueues(maxQueues int) {
 	s.handler.SetQueueSize(maxQueues)
 }
 
-func (s *Server) SetMaxConn(connects int) {
+func (s *Server) SetMaxConn(connects int32) {
 	if connects <= 0 {
 		return
 	}

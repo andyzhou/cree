@@ -11,5 +11,5 @@ package iface
  	Remove(IConnect)
  	Clear()
  	Get(uint32)(IConnect,error)
- 	GetLen()int
+ 	GetLen()int32
  }

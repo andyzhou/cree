@@ -117,8 +117,10 @@ func (f *Handler) SendToQueue(req iface.IRequest) {
 		}
 	}()
 
-	//send to worker queue
-	worker.queueChan <- req
+	//async send to worker queue
+	select {
+	case worker.queueChan <- req:
+	}
 }
 
 //message handle
