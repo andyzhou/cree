@@ -55,13 +55,13 @@ func (m *Manager) Clear() {
 	//clear all
 	subFunc := func(key, val interface{}) bool {
 		conn, ok := val.(iface.IConnect)
-		if !ok {
-			return false
+		if ok && conn != nil {
+			conn.Stop()
 		}
-		conn.Stop()
 		return true
 	}
 	m.connectMap.Range(subFunc)
+	m.connects = 0
 }
 
 //remove connect
