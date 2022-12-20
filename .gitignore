@@ -1,3 +1,5 @@
 .idea
 *.exe
 *_drawin
+example/server
+example/client
