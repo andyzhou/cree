@@ -190,6 +190,12 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 		return false
 	}
 
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("Server:watchConn panic err:", err)
+		}
+	}()
+
 	for {
 		if s.needQuit {
 			break
