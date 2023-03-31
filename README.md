@@ -4,4 +4,4 @@ This is a tcp service frame, base on go language.
 
 **Example**
 
-Please see the server.go in **example** sub dir.
+Please see the code in `example` sub dir.
