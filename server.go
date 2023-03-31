@@ -2,6 +2,7 @@ package cree
 
 import (
 	"fmt"
+	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/face"
 	"github.com/andyzhou/cree/iface"
 	"log"
@@ -14,13 +15,6 @@ import (
  * @author <AndyZhou>
  * @mail <diudiu8848@163.com>
  */
-
- //inter macro define
- const (
- 	DefaultMinConnects = 128
- 	DefaultMaxConnects = 1024
- 	DefaultTcpVersion = "tcp"
- )
 
  //face info
  type Server struct {
@@ -54,8 +48,8 @@ func NewServer(
 	)
 
 	//check and set default value
-	tcpVersion = DefaultTcpVersion
-	maxConnects = DefaultMinConnects
+	tcpVersion = define.DefaultTcpVersion
+	maxConnects = define.DefaultMinConnects
 	if extraParas != nil && len(extraParas) > 0 {
 		//get tcp kind
 		tcpVersion, _ = extraParas[0].(string)
@@ -64,10 +58,10 @@ func NewServer(
 		if len(extraParas) > 1 {
 			maxConnects, _ = extraParas[1].(int32)
 			if maxConnects <= 0 {
-				maxConnects = DefaultMinConnects
+				maxConnects = define.DefaultMinConnects
 			}
-			if maxConnects > DefaultMaxConnects {
-				maxConnects = DefaultMaxConnects
+			if maxConnects > define.DefaultMaxConnects {
+				maxConnects = define.DefaultMaxConnects
 			}
 		}
 	}

@@ -3,6 +3,7 @@ package cree
 import (
 	"errors"
 	"fmt"
+	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/face"
 	"log"
 	"net"
@@ -13,12 +14,6 @@ import (
  * @author <AndyZhou>
  * @mail <diudiu8848@163.com>
  */
-
-//inter default value
-const (
-	TcpReadBuffSize = 1024
-	LazySendChanSize = 1024
-)
 
 //face info
 type Client struct {
@@ -43,7 +38,7 @@ func NewClient(
 	)
 
 	//setup option parameter
-	lazySendChanSize = LazySendChanSize
+	lazySendChanSize = define.DefaultLazySendChanSize
 	if lazyChanSize != nil && len(lazyChanSize) > 0 {
 		lazySendChanSize = lazyChanSize[0]
 	}
@@ -52,7 +47,7 @@ func NewClient(
 	this := &Client{
 		host: host,
 		port: port,
-		readBuffSize: TcpReadBuffSize,
+		readBuffSize: define.DefaultTcpReadBuffSize,
 		lazySendChan: make(chan []byte, lazySendChanSize),
 		closeChan: make(chan bool, 1),
 	}
