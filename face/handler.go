@@ -73,9 +73,12 @@ func NewHandlerWorker(handler iface.IHandler) *HandlerWorker {
 
 //handler worker quit
 func (sh *HandlerWorker) Quit() {
+	var (
+		m any = nil
+	)
 	defer func() {
-		if err := recover(); err != nil {
-			log.Println("HandlerWorker:Quit panic, err:", err)
+		if subErr := recover(); subErr != m {
+			log.Println("HandlerWorker:Quit panic, err:", subErr)
 		}
 	}()
 	sh.closeChan <- true
@@ -103,6 +106,9 @@ func (f *Handler) SetQueueSize(queueSize int) {
 
 //message handle in queue
 func (f *Handler) SendToQueue(req iface.IRequest) {
+	var (
+		m any = nil
+	)
 	//get random worker
 	worker := f.getRandomWorker()
 	if worker == nil {
@@ -111,7 +117,7 @@ func (f *Handler) SendToQueue(req iface.IRequest) {
 
 	//try catch panic
 	defer func() {
-		if err := recover(); err != nil {
+		if err := recover(); err != m {
 			log.Println("Handler::SendToQueue panic happened, err:", err)
 			return
 		}
@@ -194,10 +200,11 @@ func (sh *HandlerWorker) runMainProcess() {
 	var (
 		req iface.IRequest
 		isOk, needQuit bool
+		m any = nil
 	)
 
 	defer func() {
-		if err := recover(); err != nil {
+		if err := recover(); err != m {
 			log.Println("HandlerWorker:mainProcess panic, err:", err)
 		}
 		//close chan

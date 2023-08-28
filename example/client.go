@@ -31,7 +31,7 @@ func ClientWrite(client *cree.Client, testTimes int, wg *sync.WaitGroup) {
 		if err != nil {
 			log.Println("ClientWrite failed, err:", err.Error())
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Second/10)
 	}
 	wg.Done()
 }

@@ -178,6 +178,7 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 		connId uint32
 		conn *net.TCPConn
 		err error
+		m any = nil
 	)
 
 	if listener == nil {
@@ -185,8 +186,8 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 	}
 
 	defer func() {
-		if err := recover(); err != nil {
-			log.Println("Server:watchConn panic err:", err)
+		if subErr := recover(); subErr != m {
+			log.Println("Server:watchConn panic err:", subErr)
 		}
 	}()
 

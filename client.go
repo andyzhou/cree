@@ -57,14 +57,17 @@ func NewClient(
 
 //close connect
 func (c *Client) Close() {
-	if c.conn == nil {
-		return
+	if c.conn != nil {
+		(*c.conn).Close()
+		c.conn = nil
 	}
-	(*c.conn).Close()
-	c.conn = nil
 	c.connected = false
-	c.closeChan <- true
-	close(c.lazySendChan)
+	if c.closeChan != nil {
+		close(c.closeChan)
+	}
+	if c.lazySendChan != nil {
+		close(c.lazySendChan)
+	}
 }
 
 //set cb for read data
@@ -174,11 +177,12 @@ func (c *Client) runLazySendProcess() {
 	var (
 		packet []byte
 		isOk bool
+		m any = nil
 	)
 
 	//defer
 	defer func() {
-		if err := recover(); err != nil {
+		if err := recover(); err != m {
 			log.Println("Client:runLazySendProcess panic, err:", err)
 		}
 		close(c.closeChan)
@@ -202,6 +206,7 @@ func (c *Client) runReadProcess() {
 	var (
 		buff []byte
 		err error
+		m any = nil
 	)
 
 	//init buff
@@ -209,7 +214,7 @@ func (c *Client) runReadProcess() {
 
 	//defer
 	defer func() {
-		if err := recover(); err != nil {
+		if subErr := recover(); subErr != m {
 			log.Println("Client:runReadProcess panic, err:", err)
 		}
 		c.Close()
@@ -220,7 +225,7 @@ func (c *Client) runReadProcess() {
 		//try read tcp data
 		_, err = (*c.conn).Read(buff)
 		if err != nil {
-			panic(err)
+			panic(any(err))
 		}
 
 		//call cb

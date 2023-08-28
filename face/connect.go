@@ -66,6 +66,9 @@ func NewConnect(
 
 //send message
 func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
+	var (
+		m any = nil
+	)
 	//basic check
 	if messageId <= 0 || data == nil {
 		err = errors.New("invalid parameter")
@@ -85,8 +88,8 @@ func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
 
 	//try catch panic
 	defer func(result error) {
-		if err := recover(); err != nil {
-			tips := fmt.Sprintln("panic happened, err:", err)
+		if subErr := recover(); subErr != m {
+			tips := fmt.Sprintln("panic happened, err:", subErr)
 			result = errors.New(tips)
 		}
 	}(err)
@@ -108,12 +111,15 @@ func (c *Connect) Start() {
 }
 
 func (c *Connect) Stop() {
+	var (
+		m any = nil
+	)
 	if c.isClosed == true {
 		return
 	}
 
 	defer func() {
-		if err := recover(); err != nil {
+		if err := recover(); err != m {
 			log.Println("cree:Connect::Stop, panic happened, err:", err)
 		}
 		//close connect
@@ -205,12 +211,13 @@ func (c *Connect) startRead() {
 		data []byte
 		message iface.IMessage
 		err error
+		m any = nil
 	)
 
 	//defer function
 	defer func() {
-		if err := recover(); err != nil {
-			log.Println("Connect:startRead panic, err:", err)
+		if subErr := recover(); subErr != m {
+			log.Println("Connect:startRead panic, err:", subErr)
 		}
 		//stop connect
 		c.Stop()
@@ -260,11 +267,12 @@ func (c *Connect) startWrite() {
 		data = make([]byte, 0)
 		err error
 		isOk, needQuit bool
+		m any = nil
 	)
 
 	defer func() {
-		if err := recover(); err != nil {
-			log.Println("Connect:startWrite panic, err:", err)
+		if subErr := recover(); subErr != m {
+			log.Println("Connect:startWrite panic, err:", subErr)
 		}
 		//stop connect
 		c.Stop()
