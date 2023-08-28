@@ -3,6 +3,7 @@ package face
 import (
 	"errors"
 	"fmt"
+	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/iface"
 	"log"
 	"math/rand"
@@ -16,22 +17,12 @@ import (
  * @mail <diudiu8848@163.com>
  */
 
- //macro define
- const (
- 	//for queue
- 	HandlerQueueSizeDefault = 5
- 	HandlerQueueSizeMax = 128
-
- 	//for chan
- 	HandlerQueueChanSize = 1024
- )
-
  //face info
  type Handler struct {
- 	queueSize int
  	redirectRouter iface.IRouter
- 	handlerMap map[uint32]iface.IRouter
- 	handlerQueue map[int]*HandlerWorker
+ 	handlerMap sync.Map //msgId -> iRouter
+ 	handlerQueue sync.Map //workerId -> iWorker
+    queueSize int
  	sync.RWMutex
  }
 
@@ -46,9 +37,9 @@ import (
 func NewHandler() *Handler {
 	//self init
 	this := &Handler{
-		queueSize:HandlerQueueSizeDefault,
-		handlerMap:make(map[uint32]iface.IRouter),
-		handlerQueue:make(map[int]*HandlerWorker),
+		queueSize:define.HandlerQueueSizeDefault,
+		handlerMap:sync.Map{},
+		handlerQueue:sync.Map{},
 	}
 	//inter init
 	this.interInit()
@@ -59,7 +50,7 @@ func NewHandlerWorker(handler iface.IHandler) *HandlerWorker {
 	//self init
 	this := &HandlerWorker{
 		handler:handler,
-		queueChan:make(chan iface.IRequest, HandlerQueueChanSize),
+		queueChan:make(chan iface.IRequest, define.HandlerQueueChanSize),
 		closeChan:make(chan bool, 1),
 	}
 	//spawn main process
@@ -86,11 +77,15 @@ func (sh *HandlerWorker) Quit() {
 
 //handler quit
 func (f *Handler) Quit() {
-	if f.handlerQueue != nil {
-		for _, hq := range f.handlerQueue {
+	sf := func(k, v interface{}) bool {
+		hq, ok := v.(*HandlerWorker)
+		if ok && hq != nil {
 			hq.Quit()
 		}
+		return true
 	}
+	f.handlerQueue.Range(sf)
+	f.handlerQueue = sync.Map{}
 }
 
 //set and modify queue size
@@ -98,8 +93,8 @@ func (f *Handler) SetQueueSize(queueSize int) {
 	if queueSize <= 0 {
 		return
 	}
-	if queueSize > HandlerQueueSizeMax {
-		queueSize = HandlerQueueSizeMax
+	if queueSize > define.HandlerQueueSizeMax {
+		queueSize = define.HandlerQueueSizeMax
 	}
 	f.reSizeQueueSize(queueSize)
  }
@@ -133,8 +128,8 @@ func (f *Handler) SendToQueue(req iface.IRequest) {
 func (f *Handler) DoMessageHandle(req iface.IRequest) error {
 	//get relate handler by message id
 	messageId := req.GetMessage().GetId()
-	handler, ok := f.handlerMap[messageId]
-	if !ok {
+	router := f.getRouter(messageId)
+	if router == nil {
 		//check redirect router
 		if f.redirectRouter != nil {
 			//call relate handle
@@ -150,10 +145,9 @@ func (f *Handler) DoMessageHandle(req iface.IRequest) error {
 	}
 
 	//call relate handle
-	handler.PreHandle(req)
-	handler.Handle(req)
-	handler.PostHandle(req)
-
+	router.PreHandle(req)
+	router.Handle(req)
+	router.PostHandle(req)
 	return nil
 }
 
@@ -166,16 +160,13 @@ func (f *Handler) AddRouter(messageId uint32, router iface.IRouter) error {
 	}
 
 	//check
-	_, ok := f.handlerMap[messageId]
-	if ok {
+	oldRouter := f.getRouter(messageId)
+	if oldRouter != nil {
 		return nil
 	}
 
-	//add into map with locker
-	f.Lock()
-	defer f.Unlock()
-	f.handlerMap[messageId] = router
-
+	//add into map
+	f.handlerMap.Store(messageId, router)
 	return nil
 }
 
@@ -236,37 +227,25 @@ func (f *Handler) reSizeQueueSize(queueSize int) {
 	}
 
 	//dynamic create new handler worker
-	f.Lock()
-	defer f.Unlock()
 	for i := f.queueSize; i <= queueSize; i++ {
 		worker := NewHandlerWorker(f)
-		f.handlerQueue[i] = worker
+		f.handlerQueue.Store(i, worker)
+		f.queueSize++
 	}
-
-	//update running queue size
-	f.queueSize = queueSize
 }
 
 //get random worker
 func (f *Handler) getRandomWorker() *HandlerWorker {
 	//basic check
-	if f.handlerQueue == nil {
-		return nil
-	}
-	queueSize := len(f.handlerQueue)
-	if queueSize <= 0 {
+	if f.queueSize <= 0 {
 		return nil
 	}
 
 	//get random index
-	randomIndex := f.getRandomVal(queueSize) + 1
+	randomIndex := f.getRandomVal(f.queueSize) + 1
 
 	//get relate worker
-	worker, ok := f.handlerQueue[randomIndex]
-	if !ok {
-		return nil
-	}
-
+	worker := f.getWorker(randomIndex)
 	return worker
 }
 
@@ -277,11 +256,41 @@ func (f *Handler) getRandomVal(maxVal int) int {
 	return r.Intn(maxVal)
 }
 
+//get worker
+func (f *Handler) getWorker(idx int) *HandlerWorker {
+	v, ok := f.handlerQueue.Load(idx)
+	if !ok || v == nil {
+		return nil
+	}
+	worker, subOk := v.(*HandlerWorker)
+	if !subOk || worker == nil {
+		return nil
+	}
+	return worker
+}
+
+//get router of message id
+func (f *Handler) getRouter(msgId uint32) iface.IRouter {
+	if msgId < 0 {
+		return nil
+	}
+	v, ok := f.handlerMap.Load(msgId)
+	if !ok || v == nil {
+		return nil
+	}
+	router, subOk := v.(iface.IRouter)
+	if !subOk || router == nil {
+		return nil
+	}
+	return router
+}
+
 //inter init
 func (f *Handler) interInit() {
 	//init worker pool
 	for i := 1; i <= f.queueSize; i++ {
 		worker := NewHandlerWorker(f)
-		f.handlerQueue[i] = worker
+		f.handlerQueue.Store(i, worker)
+		f.queueSize++
 	}
 }

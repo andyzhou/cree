@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/iface"
 )
 
@@ -14,10 +15,9 @@ import (
  * @mail <diudiu8848@163.com>
  */
 
- //macro define
+ //inter macro define
  const (
  	PacketHeadSize = 12 //dataLen(4byte) + messageKind(4byte) + messageId(4byte)
- 	PacketMaxSize = 4096 //4KB
  )
 
  //face info
@@ -86,7 +86,7 @@ func (f *Packet) UnPack(data []byte) (iface.IMessage, error) {
 	}
 
 	//read data
-	if messageLen > PacketMaxSize {
+	if messageLen > define.PacketMaxSize {
 		tips := fmt.Sprintf("too large message data received, message length:%d", messageLen)
 		return nil, errors.New(tips)
 	}

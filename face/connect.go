@@ -3,6 +3,7 @@ package face
 import (
 	"errors"
 	"fmt"
+	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/iface"
 	"io"
 	"log"
@@ -15,11 +16,6 @@ import (
  * @author <AndyZhou>
  * @mail <diudiu8848@163.com>
  */
-
- //inter macro define
- const (
- 	WriteChanSize = 1024
- )
 
  //face info
  type Connect struct {
@@ -49,7 +45,7 @@ func NewConnect(
 		conn:conn,
 		connId:connectId,
 		handler:handler,
-		messageChan:make(chan []byte, WriteChanSize),
+		messageChan:make(chan []byte, define.ConnectWriteChanSize),
 		closeChan:make(chan bool, 1),
 		propertyMap:make(map[string]interface{}),
 	}
@@ -96,7 +92,6 @@ func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
 
 	//send data to chan
 	c.messageChan <- byteData
-
 	return
 }
 
