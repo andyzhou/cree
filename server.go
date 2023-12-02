@@ -222,6 +222,5 @@ func (s *Server) interInit() bool {
 
 	//watch tcp connect
 	go s.watchConn(listener)
-
 	return true
 }

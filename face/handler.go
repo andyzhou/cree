@@ -25,13 +25,6 @@ import (
     queueSize int
  	sync.RWMutex
  }
-
- //son worker
- type HandlerWorker struct {
- 	handler iface.IHandler //parent handler
- 	queueChan chan iface.IRequest
- 	closeChan chan bool
- }
  
  //construct
 func NewHandler() *Handler {
@@ -46,34 +39,9 @@ func NewHandler() *Handler {
 	return this
 }
 
-func NewHandlerWorker(handler iface.IHandler) *HandlerWorker {
-	//self init
-	this := &HandlerWorker{
-		handler:handler,
-		queueChan:make(chan iface.IRequest, define.HandlerQueueChanSize),
-		closeChan:make(chan bool, 1),
-	}
-	//spawn main process
-	go this.runMainProcess()
-	return this
-}
-
 /////////
 //api
 /////////
-
-//handler worker quit
-func (sh *HandlerWorker) Quit() {
-	var (
-		m any = nil
-	)
-	defer func() {
-		if subErr := recover(); subErr != m {
-			log.Println("HandlerWorker:Quit panic, err:", subErr)
-		}
-	}()
-	sh.closeChan <- true
-}
 
 //handler quit
 func (f *Handler) Quit() {
@@ -138,9 +106,8 @@ func (f *Handler) DoMessageHandle(req iface.IRequest) error {
 			f.redirectRouter.PostHandle(req)
 			return nil
 		}
-
 		tips := fmt.Sprintf("no handler for message id:%d", messageId)
-		log.Println("Handler::DoMessageHandle ", tips)
+		log.Println("Handler::DoMessageHandle, tips:", tips)
 		return errors.New(tips)
 	}
 
@@ -150,7 +117,6 @@ func (f *Handler) DoMessageHandle(req iface.IRequest) error {
 	router.PostHandle(req)
 	return nil
 }
-
 
 //add router
 func (f *Handler) AddRouter(messageId uint32, router iface.IRouter) error {
@@ -186,39 +152,6 @@ func (f *Handler) RegisterRedirect(router iface.IRouter) error {
 //private func
 ///////////////
 
-//run son worker main process
-func (sh *HandlerWorker) runMainProcess() {
-	var (
-		req iface.IRequest
-		isOk, needQuit bool
-		m any = nil
-	)
-
-	defer func() {
-		if err := recover(); err != m {
-			log.Println("HandlerWorker:mainProcess panic, err:", err)
-		}
-		//close chan
-		close(sh.queueChan)
-		close(sh.closeChan)
-	}()
-
-	//loop
-	for {
-		if needQuit && len(sh.queueChan) <= 0 {
-			break
-		}
-		select {
-		case req, isOk = <- sh.queueChan:
-			if isOk {
-				sh.handler.DoMessageHandle(req)
-			}
-		case <- sh.closeChan:
-			needQuit = true
-		}
-	}
-}
-
 //resize handler queue
 func (f *Handler) reSizeQueueSize(queueSize int) {
 	if f.queueSize >= queueSize {
@@ -228,9 +161,8 @@ func (f *Handler) reSizeQueueSize(queueSize int) {
 
 	//dynamic create new handler worker
 	for i := f.queueSize; i <= queueSize; i++ {
-		worker := NewHandlerWorker(f)
+		worker := NewHandlerWorker(i, f)
 		f.handlerQueue.Store(i, worker)
-		f.queueSize++
 	}
 }
 
@@ -240,7 +172,6 @@ func (f *Handler) getRandomWorker() *HandlerWorker {
 	if f.queueSize <= 0 {
 		return nil
 	}
-
 	//get random index
 	randomIndex := f.getRandomVal(f.queueSize) + 1
 
@@ -289,8 +220,7 @@ func (f *Handler) getRouter(msgId uint32) iface.IRouter {
 func (f *Handler) interInit() {
 	//init worker pool
 	for i := 1; i <= f.queueSize; i++ {
-		worker := NewHandlerWorker(f)
+		worker := NewHandlerWorker(i, f)
 		f.handlerQueue.Store(i, worker)
-		f.queueSize++
 	}
 }

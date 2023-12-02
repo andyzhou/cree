@@ -6,6 +6,9 @@ import (
 	"github.com/andyzhou/cree/face"
 	"github.com/andyzhou/cree/iface"
 	"log"
+	"os"
+	"runtime/pprof"
+	"time"
 )
 
 /*
@@ -23,17 +26,28 @@ func OnConnLost(conn iface.IConnect) {
 }
 
 func main() {
+	//setup
 	host := "127.0.0.1"
 	port := 7800
 
-	//init cb api
-	testApi := NewTestApi()
+	//cpu pprof
+	f, _ := os.OpenFile("cpu.pprof", os.O_CREATE|os.O_RDWR, 0644)
+	pprof.StartCPUProfile(f)
+
+	sf := func() {
+		pprof.StopCPUProfile()
+		f.Close()
+		fmt.Println("pprof cpu finished")
+	}
+	time.AfterFunc(time.Second * 15, sf)
+
 
 	//set server conf
 	conf := &cree.ServerConf{
 		Host: host,
 		Port: port,
 		TcpVersion: "tcp",
+		MaxConnects: 128,
 	}
 
 	//init server
@@ -45,7 +59,10 @@ func main() {
 
 	//setting for performance
 	server.SetMaxConnects(100)
-	server.SetHandlerQueues(32)
+	//server.SetHandlerQueues(1)
+
+	//init cb api
+	testApi := NewTestApi()
 
 	//register router for message
 	server.AddRouter(1, testApi)
