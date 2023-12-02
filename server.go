@@ -50,6 +50,12 @@ func NewServer(conf *ServerConf) *Server {
 			MaxConnects: define.DefaultMinConnects,
 		}
 	}
+	if conf.TcpVersion == "" {
+		conf.TcpVersion = define.DefaultTcpVersion
+	}
+	if conf.MaxConnects <= 0 {
+		conf.MaxConnects = define.DefaultMinConnects
+	}
 
 	//self init
 	this := &Server{
