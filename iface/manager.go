@@ -7,8 +7,8 @@ package iface
  */
 
  type IManager interface {
- 	Add(IConnect)
- 	Remove(IConnect)
+ 	Add(IConnect) error
+ 	Remove(IConnect) error
  	Clear()
  	Get(uint32)(IConnect,error)
  	GetLen()int32

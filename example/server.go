@@ -29,15 +29,22 @@ func main() {
 	//init cb api
 	testApi := NewTestApi()
 
+	//set server conf
+	conf := &cree.ServerConf{
+		Host: host,
+		Port: port,
+		TcpVersion: "tcp",
+	}
+
 	//init server
-	server := cree.NewServer(host, port, "tcp")
+	server := cree.NewServer(conf)
 
 	//register hook for tcp connect start and stop
 	server.SetOnConnStart(OnConnAdd)
 	server.SetOnConnStop(OnConnLost)
 
 	//setting for performance
-	server.SetMaxConn(100)
+	server.SetMaxConnects(100)
 	server.SetHandlerQueues(32)
 
 	//register router for message

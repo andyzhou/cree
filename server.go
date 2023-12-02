@@ -16,13 +16,18 @@ import (
  * @mail <diudiu8848@163.com>
  */
 
+//server config
+type ServerConf struct {
+	Host string
+	Port int
+	TcpVersion string //like tcp, tcp4, tcp6
+	MaxConnects int32
+}
+
  //face info
  type Server struct {
  	//basic
- 	tcpVersion string //tcp4 or others
- 	ip string
- 	port int
- 	maxConnect int32
+ 	conf *ServerConf
  	needQuit bool
  	littleEndian bool
  	packet iface.IPacket
@@ -37,41 +42,18 @@ import (
 
  //construct
  //extraParas, first is tcp kind, second is max connects.
-func NewServer(
-			ip string,
-			port int,
-			extraParas ...interface{},
-		) *Server {
-	var (
-		tcpVersion string
-		maxConnects int32
-	)
-
-	//check and set default value
-	tcpVersion = define.DefaultTcpVersion
-	maxConnects = define.DefaultMinConnects
-	if extraParas != nil && len(extraParas) > 0 {
-		//get tcp kind
-		tcpVersion, _ = extraParas[0].(string)
-
-		//get max connects
-		if len(extraParas) > 1 {
-			maxConnects, _ = extraParas[1].(int32)
-			if maxConnects <= 0 {
-				maxConnects = define.DefaultMinConnects
-			}
-			if maxConnects > define.DefaultMaxConnects {
-				maxConnects = define.DefaultMaxConnects
-			}
+func NewServer(conf *ServerConf) *Server {
+	//check conf
+	if conf == nil {
+		conf = &ServerConf{
+			TcpVersion: define.DefaultTcpVersion,
+			MaxConnects: define.DefaultMinConnects,
 		}
 	}
 
 	//self init
 	this := &Server{
-		tcpVersion:tcpVersion,
-		ip:ip,
-		port:port,
-		maxConnect:maxConnects,
+		conf: conf,
 		handler:face.NewHandler(),
 		manager:face.NewManager(),
 		packet: face.NewPacket(),
@@ -120,7 +102,7 @@ func (s *Server) SetMaxConnects(maxConnects int32) {
 	if maxConnects <= 0 {
 		return
 	}
-	s.maxConnect = maxConnects
+	s.conf.MaxConnects = maxConnects
 }
 
 //set handler max queues
@@ -129,13 +111,6 @@ func (s *Server) SetHandlerQueues(maxQueues int) {
 		return
 	}
 	s.handler.SetQueueSize(maxQueues)
-}
-
-func (s *Server) SetMaxConn(connects int32) {
-	if connects <= 0 {
-		return
-	}
-	s.maxConnect = connects
 }
 
 //set hook
@@ -185,12 +160,14 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 		return false
 	}
 
+	//defer
 	defer func() {
 		if subErr := recover(); subErr != m {
 			log.Println("Server:watchConn panic err:", subErr)
 		}
 	}()
 
+	//loop
 	for {
 		if s.needQuit {
 			break
@@ -204,7 +181,8 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 		}
 
 		//check max connects
-		if s.manager.GetLen() >= s.maxConnect {
+		if s.manager.GetLen() >= s.conf.MaxConnects {
+			log.Println("connect up to max count")
 			conn.Close()
 			continue
 		}
@@ -222,15 +200,15 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 //inter init
 func (s *Server) interInit() bool {
 	//get tcp addr
-	address := fmt.Sprintf("%s:%d", s.ip, s.port)
-	addr, err := net.ResolveTCPAddr(s.tcpVersion, address)
+	address := fmt.Sprintf("%s:%d", s.conf.Host, s.conf.Port)
+	addr, err := net.ResolveTCPAddr(s.conf.TcpVersion, address)
 	if err != nil {
 		log.Println("resolve tcp addr failed, err:", err.Error())
 		return false
 	}
 
 	//begin listen
-	listener, err := net.ListenTCP(s.tcpVersion, addr)
+	listener, err := net.ListenTCP(s.conf.TcpVersion, addr)
 	if err != nil {
 		log.Println("listen on ", address, " failed, err:", err.Error())
 		return false

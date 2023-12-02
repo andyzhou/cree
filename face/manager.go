@@ -16,7 +16,7 @@ import (
  //face info
  type Manager struct {
  	connectMap *sync.Map //connectId -> IConnect
- 	connects int32
+ 	connects int32 //atomic value
  }
  
  //construct
@@ -61,31 +61,39 @@ func (m *Manager) Clear() {
 		return true
 	}
 	m.connectMap.Range(subFunc)
-	m.connects = 0
+	m.connectMap = &sync.Map{}
+	atomic.StoreInt32(&m.connects, 0)
 }
 
 //remove connect
-func (m *Manager) Remove(conn iface.IConnect) {
+func (m *Manager) Remove(conn iface.IConnect) error {
 	//remove from map with locker
 	if m.connectMap == nil {
-		return
+		return errors.New("no any connections")
 	}
-	m.connectMap.Delete(conn.GetConnId())
-	atomic.AddInt32(&m.connects, -1)
+	//check
+	hasExists := m.connIsExists(conn.GetConnId())
+	if hasExists {
+		//found and delete it
+		m.connectMap.Delete(conn.GetConnId())
+		atomic.AddInt32(&m.connects, -1)
+	}
+	return nil
 }
 
 //add connect
-func (m *Manager) Add(conn iface.IConnect)  {
+func (m *Manager) Add(conn iface.IConnect) error {
 	if conn == nil {
-		return
+		return errors.New("invalid connect")
 	}
 	hasExists := m.connIsExists(conn.GetConnId())
 	if hasExists {
-		return
+		return errors.New("connect has exists")
 	}
 	//add into map with locker
 	m.connectMap.Store(conn.GetConnId(), conn)
 	atomic.AddInt32(&m.connects, 1)
+	return nil
 }
 
 ////////////////
