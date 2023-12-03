@@ -24,14 +24,20 @@ func CBForRead(data []byte) bool {
 //test write
 func ClientWrite(client *cree.Client, testTimes int, wg *sync.WaitGroup) {
 	messageId := uint32(1)
-	for i := 1; i <= testTimes; i++ {
+	maxTimes := 50
+	times := 1
+	for {
 		//send packet data
 		data := fmt.Sprintf("time:%d", time.Now().Unix())
 		err := client.SendPacket(messageId, []byte(data), true)
 		if err != nil {
 			log.Println("ClientWrite failed, err:", err.Error())
 		}
-		time.Sleep(time.Second/10)
+		time.Sleep(time.Second)
+		times++
+		if times >= maxTimes {
+			break
+		}
 	}
 	wg.Done()
 }

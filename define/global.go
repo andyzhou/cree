@@ -7,6 +7,8 @@ const (
 	DefaultTcpVersion = "tcp"
 	DefaultTcpReadBuffSize = 1024
 	DefaultLazySendChanSize = 1024
+	DefaultManagerTicker = 60 //xx seconds
+	DefaultUnActiveSeconds = 60 //xx seconds
 )
 
 

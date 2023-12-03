@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 /*
@@ -18,18 +19,19 @@ import (
  */
 
  //face info
- type Connect struct {
- 	tcpServer iface.IServer //parent tcp server
- 	packet iface.IPacket //parent packet interface
- 	connId uint32
- 	isClosed bool
- 	conn *net.TCPConn //socket tcp connect
- 	handler iface.IHandler
- 	messageChan chan []byte
- 	closeChan chan bool
- 	propertyMap map[string]interface{}
- 	sync.RWMutex
- }
+type Connect struct {
+	tcpServer   iface.IServer //parent tcp server
+	packet      iface.IPacket //parent packet interface
+	connId      uint32
+	isClosed    bool
+	conn        *net.TCPConn //socket tcp connect
+	handler     iface.IHandler
+	messageChan chan []byte
+	closeChan   chan bool
+	propertyMap map[string]interface{}
+	activeTime  int64 //last active timestamp
+	sync.RWMutex
+}
 
  //construct
 func NewConnect(
@@ -60,6 +62,11 @@ func NewConnect(
 //api
 /////////
 
+//get last active time
+func (c *Connect) GetActiveTime() int64 {
+	return c.activeTime
+}
+
 //send message
 func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
 	var (
@@ -89,6 +96,11 @@ func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
 			result = errors.New(tips)
 		}
 	}(err)
+
+	//defer update active time
+	defer func() {
+		c.activeTime = time.Now().Unix()
+	}()
 
 	//send data to chan
 	c.messageChan <- byteData

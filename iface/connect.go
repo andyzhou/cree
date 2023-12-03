@@ -12,6 +12,7 @@ import "net"
  	Start()
  	Stop()
  	SendMessage(uint32, []byte) error
+	GetActiveTime() int64
  	GetConn() *net.TCPConn
  	GetConnId() uint32
  	GetRemoteAddr() net.Addr
