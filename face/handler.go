@@ -23,7 +23,6 @@ import (
  	handlerMap sync.Map //msgId -> iRouter
  	handlerQueue sync.Map //workerId -> iWorker
     queueSize int
- 	sync.RWMutex
  }
  
  //construct
