@@ -154,8 +154,23 @@ func (f *Handler) RegisterRedirect(router iface.IRouter) error {
 
 //resize handler queue
 func (f *Handler) reSizeQueueSize(queueSize int) {
-	if f.queueSize >= queueSize {
+	if f.queueSize == queueSize {
 		//do nothing
+		return
+	}
+
+	if f.queueSize > queueSize {
+		//remove tail active queues
+		for i := queueSize; i <= f.queueSize; i++ {
+			sonQueue, ok := f.handlerQueue.Load(i)
+			if ok && sonQueue != nil {
+				hw, isOk := sonQueue.(*HandlerWorker)
+				if isOk && hw != nil {
+					hw.Quit()
+					f.handlerQueue.Delete(i)
+				}
+			}
+		}
 		return
 	}
 
