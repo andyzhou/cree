@@ -22,6 +22,7 @@ import (
 
  //face info
  type Packet struct {
+	 maxPackSize int
 	 littleEndian bool
 	 byteOrder binary.ByteOrder
  }
@@ -30,6 +31,7 @@ import (
 func NewPacket() *Packet {
 	//self init
 	this := &Packet{
+		maxPackSize: define.PacketMaxSize,
 		littleEndian: true,
 		byteOrder: binary.LittleEndian,
 	}
@@ -39,6 +41,14 @@ func NewPacket() *Packet {
 ////////
 //api
 ////////
+
+//set max pack size
+func (f *Packet) SetMaxPackSize(size int) {
+	if size <= 0 {
+		return
+	}
+	f.maxPackSize = size
+}
 
 //set little endian
 func (f *Packet) SetLittleEndian(littleEndian bool) {
@@ -86,7 +96,7 @@ func (f *Packet) UnPack(data []byte) (iface.IMessage, error) {
 	}
 
 	//read data
-	if messageLen > define.PacketMaxSize {
+	if messageLen > uint32(f.maxPackSize) {
 		tips := fmt.Sprintf("too large message data received, message length:%d", messageLen)
 		return nil, errors.New(tips)
 	}

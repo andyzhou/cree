@@ -22,6 +22,7 @@ type ServerConf struct {
 	Port int
 	TcpVersion string //like tcp, tcp4, tcp6
 	MaxConnects int32
+	MaxPackSize int //pack data max size
 }
 
  //face info
@@ -85,6 +86,11 @@ func (s *Server) Stop() {
 func (s *Server) StopSkipWg() {
 	s.needQuit = true
 	s.manager.Clear()
+}
+
+//set max pack size
+func (s *Server) SetMaxPackSize(size int) {
+	s.packet.SetMaxPackSize(size)
 }
 
 //add router

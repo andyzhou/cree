@@ -6,4 +6,5 @@ type IPacket interface {
 	Pack(message IMessage) ([]byte, error)
 	GetHeadLen() uint32
 	SetLittleEndian(littleEndian bool)
+	SetMaxPackSize(size int)
 }

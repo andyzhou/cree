@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/face"
+	"github.com/andyzhou/cree/iface"
 	"log"
 	"net"
 )
@@ -25,6 +26,7 @@ type Client struct {
 	cbForRead func(data []byte) bool
 	lazySendChan chan []byte
 	closeChan chan bool
+	pack iface.IPacket
 }
 
 //construct
@@ -50,6 +52,7 @@ func NewClient(
 		readBuffSize: define.DefaultTcpReadBuffSize,
 		lazySendChan: make(chan []byte, lazySendChanSize),
 		closeChan: make(chan bool, 1),
+		pack: face.NewPacket(),
 	}
 	go this.runLazySendProcess()
 	return this
@@ -68,6 +71,11 @@ func (c *Client) Close() {
 	if c.lazySendChan != nil {
 		close(c.lazySendChan)
 	}
+}
+
+//set max pack size
+func (c *Client) SetMaxPackSize(size int) {
+	c.pack.SetMaxPackSize(size)
 }
 
 //set cb for read data
@@ -167,8 +175,7 @@ func (c *Client) packetData(messageId uint32, data []byte) []byte {
 	message := face.NewMessage()
 	message.Id = messageId
 	message.SetData(data)
-	packet := face.NewPacket()
-	byteData, _ := packet.Pack(message)
+	byteData, _ := c.pack.Pack(message)
 	return byteData
 }
 
