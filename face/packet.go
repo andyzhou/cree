@@ -16,6 +16,7 @@ import (
  */
 
  //inter macro define
+ //DO NOT CHANGE THIS!!!
  const (
  	PacketHeadSize = 12 //dataLen(4byte) + messageKind(4byte) + messageId(4byte)
  )

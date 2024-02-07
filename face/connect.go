@@ -20,8 +20,8 @@ import (
 
  //face info
 type Connect struct {
-	tcpServer   iface.IServer //parent tcp server
-	packet      iface.IPacket //parent packet interface
+	tcpServer   iface.IServer //parent tcp server reference
+	packet      iface.IPacket //parent packet interface reference
 	connId      uint32
 	isClosed    bool
 	conn        *net.TCPConn //socket tcp connect
@@ -35,11 +35,11 @@ type Connect struct {
 
  //construct
 func NewConnect(
-				server iface.IServer,
-				conn *net.TCPConn,
-				connectId uint32,
-				handler iface.IHandler,
-			) *Connect {
+		server iface.IServer,
+		conn *net.TCPConn,
+		connectId uint32,
+		handler iface.IHandler,
+	) *Connect {
 	//self init
 	this := &Connect{
 		tcpServer:server,
@@ -54,7 +54,6 @@ func NewConnect(
 
 	//spawn main process
 	go this.runMainProcess()
-
 	return this
 }
 
@@ -68,14 +67,13 @@ func (c *Connect) GetActiveTime() int64 {
 }
 
 //send message
-func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
+func (c *Connect) SendMessage(messageId uint32, data []byte) error {
 	var (
 		m any = nil
 	)
 	//basic check
 	if messageId <= 0 || data == nil {
-		err = errors.New("invalid parameter")
-		return
+		return errors.New("invalid parameter")
 	}
 
 	//create message
@@ -86,16 +84,17 @@ func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
 	//create message packet
 	byteData, err := c.packet.Pack(message)
 	if err != nil {
-		return
+		return err
 	}
 
 	//try catch panic
-	defer func(result error) {
+	defer func() {
 		if subErr := recover(); subErr != m {
-			tips := fmt.Sprintln("panic happened, err:", subErr)
-			result = errors.New(tips)
+			errInfo := fmt.Errorf("cree.connect, panic err:%v", subErr)
+			log.Printf(errInfo.Error())
+			return
 		}
-	}(err)
+	}()
 
 	//defer update active time
 	defer func() {
@@ -104,7 +103,7 @@ func (c *Connect) SendMessage(messageId uint32, data []byte) (err error) {
 
 	//send data to chan
 	c.messageChan <- byteData
-	return
+	return nil
 }
 
 //start
@@ -131,13 +130,12 @@ func (c *Connect) Stop() {
 		}
 		//close connect
 		c.conn.Close()
+		c.isClosed = true
 
 		//close chan
 		close(c.messageChan)
 		close(c.closeChan)
 	}()
-
-	c.isClosed = true
 
 	//call hook of connect closed
 	c.tcpServer.CallOnConnStop(c)
@@ -238,14 +236,14 @@ func (c *Connect) startRead() {
 		//read message head
 		_, err = io.ReadFull(c.conn, header)
 		if err != nil {
-			log.Println("read message header failed, err:", err.Error())
+			log.Println("cree.connect, read message header failed, err:", err.Error())
 			break
 		}
 
 		//unpack header
 		message, err = c.packet.UnPack(header)
 		if err != nil {
-			log.Println("unpack message failed, err:", err.Error())
+			log.Println("cree.connect, unpack message failed, err:", err.Error())
 			break
 		}
 
@@ -254,7 +252,7 @@ func (c *Connect) startRead() {
 			data = make([]byte, message.GetLen())
 			_, err = io.ReadFull(c.conn, data)
 			if err != nil {
-				log.Println("read data failed, err:", err.Error())
+				log.Println("cree.connect, read data failed, err:", err.Error())
 				break
 			}
 			message.SetData(data)
@@ -279,7 +277,7 @@ func (c *Connect) startWrite() {
 
 	defer func() {
 		if subErr := recover(); subErr != m {
-			log.Println("Connect:startWrite panic, err:", subErr)
+			log.Printf("cree.Connect.startWrite panic, err:%v", subErr)
 		}
 		//stop connect
 		c.Stop()
@@ -300,7 +298,7 @@ func (c *Connect) startWrite() {
 					}
 					_, err = c.conn.Write(data)
 					if err != nil {
-						log.Println("send data to client failed, err:", err.Error())
+						log.Println("cree.connect, send data to client failed, err:", err.Error())
 						return
 					}
 				}

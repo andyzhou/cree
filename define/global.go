@@ -2,6 +2,7 @@ package define
 
 //default values define
 const (
+	DefaultPort = 5300
 	DefaultMinConnects = 128
 	DefaultMaxConnects = 1024
 	DefaultTcpVersion = "tcp"
@@ -18,5 +19,5 @@ const (
 	HandlerQueueSizeDefault = 5
 	HandlerQueueSizeMax = 128
 	HandlerQueueChanSize = 1024
-	PacketMaxSize = 4096 //4KB
+	PacketMaxSize = 2048 //2KB
 )

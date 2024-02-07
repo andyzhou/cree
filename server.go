@@ -43,10 +43,18 @@ type ServerConf struct {
 
  //construct
  //extraParas, first is tcp kind, second is max connects.
-func NewServer(conf *ServerConf) *Server {
+func NewServer(configs ...*ServerConf) *Server {
+	var (
+		conf *ServerConf
+	)
+	if configs != nil && len(configs) > 0 {
+		conf = configs[0]
+	}
+
 	//check conf
 	if conf == nil {
 		conf = &ServerConf{
+			Port: define.DefaultPort,
 			TcpVersion: define.DefaultTcpVersion,
 			MaxConnects: define.DefaultMinConnects,
 		}
@@ -56,6 +64,9 @@ func NewServer(conf *ServerConf) *Server {
 	}
 	if conf.MaxConnects <= 0 {
 		conf.MaxConnects = define.DefaultMinConnects
+	}
+	if conf.Port <= 0 {
+		conf.Port = define.DefaultPort
 	}
 
 	//self init
@@ -215,14 +226,14 @@ func (s *Server) interInit() bool {
 	address := fmt.Sprintf("%s:%d", s.conf.Host, s.conf.Port)
 	addr, err := net.ResolveTCPAddr(s.conf.TcpVersion, address)
 	if err != nil {
-		log.Println("resolve tcp addr failed, err:", err.Error())
+		log.Printf("cree.server, resolve tcp addr failed, err:%v", err.Error())
 		return false
 	}
 
 	//begin listen
 	listener, err := net.ListenTCP(s.conf.TcpVersion, addr)
 	if err != nil {
-		log.Println("listen on ", address, " failed, err:", err.Error())
+		log.Printf("cree.server, listen on %v failed, err:%v", address, err.Error())
 		return false
 	}
 

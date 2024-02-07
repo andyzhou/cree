@@ -61,9 +61,15 @@ func (f *HandlerWorker) runMainProcess() {
 		if err := recover(); err != m {
 			log.Println("HandlerWorker:mainProcess panic, err:", err)
 		}
-		//close chan
+		//process left queue
+		for {
+			req, isOk = <- f.queueChan
+			if !isOk || req == nil {
+				break
+			}
+			f.handler.DoMessageHandle(req)
+		}
 		close(f.queueChan)
-		close(f.closeChan)
 	}()
 
 	//loop
