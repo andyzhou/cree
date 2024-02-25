@@ -2,6 +2,7 @@ package face
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -119,6 +120,16 @@ func (c *Connect) Stop() {
 	c.tcpServer.GetManager().Remove(c)
 }
 
+//read message
+func (c *Connect) ReadMessage() error {
+	//init header
+	header := make([]byte, c.packet.GetHeadLen())
+
+	//read one message
+	err := c.readOneMessage(header)
+	return err
+}
+
 //get remote client address
 func (c *Connect) GetRemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
@@ -177,8 +188,6 @@ func (c *Connect) GetProperty(key string) (interface{}, error) {
 //read data from client
 func (c *Connect) startRead() {
 	var (
-		data []byte
-		message iface.IMessage
 		err error
 		m any = nil
 	)
@@ -197,37 +206,54 @@ func (c *Connect) startRead() {
 
 	//read data in the loop
 	for {
-		//read message head
-		_, err = io.ReadFull(c.conn, header)
+		//read one message
+		err = c.readOneMessage(header)
 		if err != nil {
-			//log.Println("cree.connect, read message header failed, err:", err.Error())
 			break
 		}
-
-		//unpack header
-		message, err = c.packet.UnPack(header)
-		if err != nil {
-			log.Println("cree.connect.startRead, unpack message failed, err:", err.Error())
-			break
-		}
-
-		//read real data and storage into message object
-		if message.GetLen() > 0 {
-			data = make([]byte, message.GetLen())
-			_, err = io.ReadFull(c.conn, data)
-			if err != nil {
-				log.Println("cree.connect.startRead, read data failed, err:", err.Error())
-				break
-			}
-			message.SetData(data)
-		}
-
-		//init client request
-		req := NewRequest(c, message)
-
-		//handle request message
-		c.handler.DoMessageHandle(req)
 	}
+}
+
+//read one message
+func (c *Connect) readOneMessage(header []byte) error {
+	//check
+	if header == nil {
+		return errors.New("invalid header parameter")
+	}
+	if c.conn == nil {
+		return errors.New("connect is nil")
+	}
+
+	//read message head
+	_, err := io.ReadFull(c.conn, header)
+	if err != nil {
+		return err
+	}
+
+	//unpack header
+	message, subErr := c.packet.UnPack(header)
+	if subErr != nil {
+		errTip := fmt.Errorf("cree.connect.startRead, unpack message failed, err:%v", subErr.Error())
+		return errTip
+	}
+
+	//read real data and storage into message object
+	if message.GetLen() > 0 {
+		data := make([]byte, message.GetLen())
+		_, err = io.ReadFull(c.conn, data)
+		if err != nil {
+			errTip := fmt.Errorf("cree.connect.startRead, read data failed, err:%v", err.Error())
+			return errTip
+		}
+		message.SetData(data)
+	}
+
+	//init client request
+	req := NewRequest(c, message)
+
+	//handle request message
+	err = c.handler.DoMessageHandle(req)
+	return err
 }
 
 //cb for list consumer

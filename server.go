@@ -129,9 +129,17 @@ func (s *Server) GetManager() iface.IManager {
 	return face.GetManager()
 }
 
+func (s *Server) GetPacket() iface.IPacket {
+	return s.packet
+}
+
 //set max pack size
 func (s *Server) SetMaxPackSize(size int) {
 	s.packet.SetMaxPackSize(size)
+}
+
+func (s *Server) SetLittleEndian(littleEndian bool) {
+	s.littleEndian = littleEndian
 }
 
 //set max connections
@@ -146,7 +154,6 @@ func (s *Server) SetMaxConnects(maxConnects int32) {
 func (s *Server) SetOnConnStart(hook func(iface.IConnect)) {
 	s.onConnStart = hook
 }
-
 func (s *Server) SetOnConnStop(hook func(iface.IConnect)) {
 	s.onConnStop = hook
 }
@@ -157,19 +164,10 @@ func (s *Server) CallOnConnStart(conn iface.IConnect) {
 		s.onConnStart(conn)
 	}
 }
-
 func (s *Server) CallOnConnStop(conn iface.IConnect) {
 	if s.onConnStop != nil {
 		s.onConnStop(conn)
 	}
-}
-
-func (s *Server) SetLittleEndian(littleEndian bool) {
-	s.littleEndian = littleEndian
-}
-
-func (s *Server) GetPacket() iface.IPacket {
-	return s.packet
 }
 
 ////////////////

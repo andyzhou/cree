@@ -68,7 +68,7 @@ func main() {
 	//init server
 	server := cree.NewServer(conf)
 
-	//register hook for tcp connect start and stop
+	//register hook for new tcp connect start and stop
 	server.SetOnConnStart(OnConnAdd)
 	server.SetOnConnStop(OnConnLost)
 

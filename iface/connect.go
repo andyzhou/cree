@@ -9,13 +9,19 @@ import "net"
  */
 
  type IConnect interface {
+	//base
  	Start()
  	Stop()
  	SendMessage(uint32, []byte) error
+	ReadMessage() error
+
+	//get base
 	GetActiveTime() int64
  	GetConn() *net.TCPConn
  	GetConnId() uint32
  	GetRemoteAddr() net.Addr
+
+	//for property
  	RemoveProperty(string)
  	SetProperty(string,interface{}) bool
  	GetProperty(string)(interface{},error)

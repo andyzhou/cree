@@ -20,7 +20,6 @@ package iface
 
  	//setting
  	SetMaxConnects(int32)
- 	//SetHandlerQueues(int)
 
  	//set hook
  	SetOnConnStart(func(IConnect))
