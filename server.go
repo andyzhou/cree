@@ -1,13 +1,17 @@
 package cree
 
 import (
+	"errors"
 	"fmt"
+	"log"
+	"net"
+	"runtime"
+	"sync"
+	"time"
+
 	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/face"
 	"github.com/andyzhou/cree/iface"
-	"log"
-	"net"
-	"sync"
 )
 
 /*
@@ -18,28 +22,35 @@ import (
 
 //server config
 type ServerConf struct {
-	Host string
-	Port int
-	TcpVersion string //like tcp, tcp4, tcp6
-	MaxConnects int32
-	MaxPackSize int //pack data max size
+	Host         string
+	Port         int
+	TcpVersion   string //like tcp, tcp4, tcp6
+	MaxConnects  int32
+	MaxPackSize  int //pack data max size
+	LittleEndian bool
+	GCRate		 int //xx seconds
 }
 
  //face info
- type Server struct {
- 	//basic
- 	conf *ServerConf
- 	needQuit bool
- 	littleEndian bool
- 	packet iface.IPacket
- 	handler iface.IHandler
- 	manager iface.IManager
- 	//hook
+type Server struct {
+	//basic
+	conf         *ServerConf
+	needQuit     bool
+	littleEndian bool
+	packet       iface.IPacket
+	handler      iface.IHandler
+
+	//hook
 	onConnStart func(iface.IConnect)
- 	onConnStop func(iface.IConnect)
- 	wg sync.WaitGroup
- 	sync.RWMutex
- }
+	onConnStop  func(iface.IConnect)
+
+	//others
+	gcCloseChan chan bool
+	gcTicker *time.Ticker
+	connQueue *face.Queue
+	wg sync.WaitGroup
+	sync.RWMutex
+}
 
  //construct
  //extraParas, first is tcp kind, second is max connects.
@@ -56,26 +67,27 @@ func NewServer(configs ...*ServerConf) *Server {
 		conf = &ServerConf{
 			Port: define.DefaultPort,
 			TcpVersion: define.DefaultTcpVersion,
-			MaxConnects: define.DefaultMinConnects,
 		}
 	}
 	if conf.TcpVersion == "" {
 		conf.TcpVersion = define.DefaultTcpVersion
 	}
-	if conf.MaxConnects <= 0 {
-		conf.MaxConnects = define.DefaultMinConnects
-	}
 	if conf.Port <= 0 {
 		conf.Port = define.DefaultPort
+	}
+	if conf.GCRate <= 0 {
+		conf.GCRate = define.DefaultGCRate
 	}
 
 	//self init
 	this := &Server{
 		conf: conf,
-		handler:face.NewHandler(),
-		manager:face.NewManager(),
 		packet: face.NewPacket(),
+		handler: face.NewHandler(),
+		connQueue: face.NewQueue(),
+		gcCloseChan: make(chan bool, 1),
 	}
+
 	//inter init
 	this.interInit()
 	return this
@@ -90,21 +102,18 @@ func (s *Server) Start() {
 //stop
 func (s *Server) Stop() {
 	s.needQuit = true
+	s.connQueue.Quit()
+	face.GetManager().Clear()
+	s.gcCloseChan <- true
 	s.wg.Done()
-	s.manager.Clear()
 }
 
 func (s *Server) StopSkipWg() {
 	s.needQuit = true
-	s.manager.Clear()
+	face.GetManager().Clear()
 }
 
-//set max pack size
-func (s *Server) SetMaxPackSize(size int) {
-	s.packet.SetMaxPackSize(size)
-}
-
-//add router
+//add router for one message id
 func (s *Server) AddRouter(messageId uint32, router iface.IRouter) {
 	s.handler.AddRouter(messageId, router)
 }
@@ -117,7 +126,12 @@ func (s *Server) RegisterRedirect(router iface.IRouter) {
 
 //get conn manager
 func (s *Server) GetManager() iface.IManager {
-	return s.manager
+	return face.GetManager()
+}
+
+//set max pack size
+func (s *Server) SetMaxPackSize(size int) {
+	s.packet.SetMaxPackSize(size)
 }
 
 //set max connections
@@ -126,14 +140,6 @@ func (s *Server) SetMaxConnects(maxConnects int32) {
 		return
 	}
 	s.conf.MaxConnects = maxConnects
-}
-
-//set handler max queues
-func (s *Server) SetHandlerQueues(maxQueues int) {
-	if maxQueues <= 0 {
-		return
-	}
-	s.handler.SetQueueSize(maxQueues)
 }
 
 //set hook
@@ -170,23 +176,22 @@ func (s *Server) GetPacket() iface.IPacket {
 //private func
 ////////////////
 
-//watch tcp connect
-func (s *Server) watchConn(listener *net.TCPListener) bool {
+//watch new tcp connect
+func (s *Server) watchConn(listener *net.TCPListener) error {
 	var (
 		connId uint32
-		conn *net.TCPConn
-		err error
 		m any = nil
 	)
 
+	//check
 	if listener == nil {
-		return false
+		return errors.New("cree.server, listener not init")
 	}
 
 	//defer
 	defer func() {
 		if subErr := recover(); subErr != m {
-			log.Println("Server:watchConn panic err:", subErr)
+			log.Println("cree.server, watch connect panic err:", subErr)
 		}
 	}()
 
@@ -196,17 +201,19 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 			break
 		}
 
-		//get tcp connect
-		conn, err = listener.AcceptTCP()
-		if err != nil {
-			log.Println("accept failed, err:", err.Error())
+		//check max connects
+		realConnects := face.GetManager().GetLen()
+		if s.conf.MaxConnects > 0 &&
+			realConnects >= s.conf.MaxConnects {
+			log.Printf("cree.server, connect up to max count, config max conn:%v, real conn:%v\n",
+				s.conf.MaxConnects, realConnects)
 			continue
 		}
 
-		//check max connects
-		if s.manager.GetLen() >= s.conf.MaxConnects {
-			log.Println("connect up to max count")
-			conn.Close()
+		//get tcp connect
+		conn, err := listener.AcceptTCP()
+		if err != nil {
+			log.Println("cree.server, accept connect failed, err:", err.Error())
 			continue
 		}
 
@@ -216,8 +223,48 @@ func (s *Server) watchConn(listener *net.TCPListener) bool {
 
 		//add connect into manager
 		s.GetManager().Add(connect)
+
+		//push into conn list queue
+		s.connQueue.SendData(connect)
 	}
-	return true
+	return nil
+}
+
+//cb for new connect list consume
+func (s *Server) cbForNewConnConsume(data interface{}) (interface{}, error) {
+	//check
+	if data == nil {
+		return nil, errors.New("invalid parameter")
+	}
+	conn, ok := data.(*face.Connect)
+	if !ok || conn == nil {
+		return nil, errors.New("data should be `*Connect` type")
+	}
+	//start connect
+	conn.Start()
+	return nil, nil
+}
+
+//run gc ticker
+func (s *Server) runGCTicker() {
+	//defer
+	defer func() {
+		s.gcTicker.Stop()
+	}()
+
+	//loop
+	for {
+		select {
+		case <- s.gcTicker.C:
+			{
+				runtime.GC()
+			}
+		case <- s.gcCloseChan:
+			{
+				return
+			}
+		}
+	}
 }
 
 //inter init
@@ -231,11 +278,22 @@ func (s *Server) interInit() bool {
 	}
 
 	//begin listen
-	listener, err := net.ListenTCP(s.conf.TcpVersion, addr)
-	if err != nil {
-		log.Printf("cree.server, listen on %v failed, err:%v", address, err.Error())
+	listener, subErr := net.ListenTCP(s.conf.TcpVersion, addr)
+	if subErr != nil {
+		log.Printf("cree.server, listen on %v failed, err:%v", address, subErr.Error())
 		return false
 	}
+
+	//init manager instance
+	face.GetManager()
+
+	//set cb for new conn consume
+	s.connQueue.SetCallback(s.cbForNewConnConsume)
+
+	//start gc ticker
+	gcRate := time.Duration(s.conf.GCRate) * time.Second
+	s.gcTicker = time.NewTicker(gcRate)
+	go s.runGCTicker()
 
 	//watch tcp connect
 	go s.watchConn(listener)

@@ -2,12 +2,14 @@ package face
 
 import (
 	"errors"
-	"github.com/andyzhou/cree/define"
-	"github.com/andyzhou/cree/iface"
 	"log"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/andyzhou/cree/define"
+	"github.com/andyzhou/cree/iface"
 )
 
 /*
@@ -16,31 +18,63 @@ import (
  * @mail <diudiu8848@163.com>
  */
 
+//global variables
+var (
+	_manager *Manager
+	_managerOnce sync.Once
+)
+
+//inter type
+type (
+	msgCastReq struct {
+		connId uint32
+		data []byte
+		forAll bool
+	}
+)
+
  //face info
  type Manager struct {
+	caster *Worker //caste lazy message
 	connUnActiveSeconds int //max un-active seconds or force closed
- 	connectMap *sync.Map //connectId -> IConnect
+	connectMap map[uint32]iface.IConnect
  	connects int32 //atomic value
 	unActiveSeconds int
 	tickChan chan struct{}
 	closeChan chan bool
+	sync.RWMutex
  }
+
+ //get single instance
+func GetManager() *Manager {
+	_managerOnce.Do(func() {
+		_manager = NewManager()
+	})
+	return _manager
+}
  
  //construct
 func NewManager() *Manager {
 	//self init
 	this := &Manager{
+		caster: NewWorker(),
 		unActiveSeconds: define.DefaultUnActiveSeconds,
-		connectMap:new(sync.Map),
+		connectMap: map[uint32]iface.IConnect{},
 		tickChan: make(chan struct{}, 1),
 		closeChan: make(chan bool, 1),
 	}
+
+	//inter init
+	this.interInit()
+
+	//spawn son process
 	go this.checkUnActiveConnProcess()
 	return this
 }
 
 //quit
 func (m *Manager) Quit() {
+	m.caster.Quit()
 	if m.closeChan != nil {
 		m.closeChan <- true
 	}
@@ -54,22 +88,32 @@ func (m *Manager) SetUnActiveSeconds(val int) {
 	m.unActiveSeconds = val
 }
 
-//get connect by id
-func (m *Manager) Get(connId uint32) (iface.IConnect, error) {
-	v, ok := m.connectMap.Load(connId)
-	if !ok {
-		return nil, errors.New("connect not found")
+//cast message
+func (m *Manager) CastMessage(data []byte, connIds ...uint32) error {
+	var (
+		err error
+	)
+	//check
+	if data == nil {
+		return errors.New("invalid parameter")
 	}
-	conn, ok := v.(iface.IConnect)
-	if !ok {
-		return nil, errors.New("invalid connect")
-	}
-	return conn, nil
-}
 
-//get map length
-func (m *Manager) GetLen() int32 {
-	return m.connects
+	//init request
+	req := msgCastReq{
+		data: data,
+	}
+	if connIds == nil || len(connIds) <= 0 {
+		//cast to all
+		req.forAll = true
+		err = m.caster.SendToWorker(req)
+	}else{
+		//cast to assigned conn ids
+		for _, connId := range connIds {
+			req.connId = connId
+			err = m.caster.SendToWorker(req, int64(connId))
+		}
+	}
+	return err
 }
 
 //clear all
@@ -79,16 +123,32 @@ func (m *Manager) Clear() {
 		return
 	}
 	//clear all
-	subFunc := func(key, val interface{}) bool {
-		conn, ok := val.(iface.IConnect)
-		if ok && conn != nil {
-			conn.Stop()
+	m.Lock()
+	defer m.Unlock()
+	for k, v := range m.connectMap {
+		if v != nil {
+			v.Stop()
 		}
-		return true
+		delete(m.connectMap, k)
 	}
-	m.connectMap.Range(subFunc)
-	m.connectMap = &sync.Map{}
+	m.connectMap = map[uint32]iface.IConnect{}
 	atomic.StoreInt32(&m.connects, 0)
+}
+
+//get map length
+func (m *Manager) GetLen() int32 {
+	return m.connects
+}
+
+//get connect by id
+func (m *Manager) Get(connId uint32) (iface.IConnect, error) {
+	m.Lock()
+	defer m.Unlock()
+	v, ok := m.connectMap[connId]
+	if !ok || v == nil {
+		return nil, errors.New("connect not found")
+	}
+	return v, nil
 }
 
 //remove connect
@@ -101,8 +161,17 @@ func (m *Manager) Remove(conn iface.IConnect) error {
 	hasExists := m.connIsExists(conn.GetConnId())
 	if hasExists {
 		//found and delete it
-		m.connectMap.Delete(conn.GetConnId())
+		m.Lock()
+		defer m.Unlock()
+		delete(m.connectMap, conn.GetConnId())
 		atomic.AddInt32(&m.connects, -1)
+
+		//border value check
+		if m.connects <= 0 {
+			m.connectMap = map[uint32]iface.IConnect{}
+			atomic.StoreInt32(&m.connects, 0)
+			runtime.GC()
+		}
 	}
 	return nil
 }
@@ -117,7 +186,9 @@ func (m *Manager) Add(conn iface.IConnect) error {
 		return errors.New("connect has exists")
 	}
 	//add into map with locker
-	m.connectMap.Store(conn.GetConnId(), conn)
+	m.Lock()
+	defer m.Unlock()
+	m.connectMap[conn.GetConnId()] = conn
 	atomic.AddInt32(&m.connects, 1)
 	return nil
 }
@@ -131,7 +202,9 @@ func (m *Manager) connIsExists(connId uint32) bool {
 	if connId <= 0 {
 		return false
 	}
-	_, ok := m.connectMap.Load(connId)
+	m.Lock()
+	defer m.Unlock()
+	_, ok := m.connectMap[connId]
 	if ok {
 		return true
 	}
@@ -145,25 +218,27 @@ func (m *Manager) checkUnActiveConn() {
 	}
 
 	//loop check
+	needReset := false
 	now := time.Now().Unix()
-	sf := func(k, v interface{}) bool {
-		//check
-		connId, ok := k.(uint32)
-		conn, okTwo := v.(iface.IConnect)
-		if ok && okTwo && conn != nil {
-			lastActive := conn.GetActiveTime()
-			diff := int(now - lastActive)
-			if diff >= m.unActiveSeconds {
-				//found and remove it
-				conn.Stop()
-				m.connectMap.Delete(connId)
-				atomic.AddInt32(&m.connects, -1)
-			}
+	m.Lock()
+	defer m.Unlock()
+	for k, v := range m.connectMap {
+		lastActive := v.GetActiveTime()
+		diff := int(now - lastActive)
+		if diff >= m.unActiveSeconds {
+			//found and remove it
+			v.Stop()
+			delete(m.connectMap, k)
+			atomic.AddInt32(&m.connects, -1)
+			needReset = true
 		}
-		return true
 	}
-	m.connectMap.Range(sf)
-	if m.connects < 0 {
+
+	//border value check
+	if m.connects <= 0 {
+		if needReset {
+			m.connectMap = map[uint32]iface.IConnect{}
+		}
 		atomic.StoreInt32(&m.connects, 0)
 	}
 }
@@ -221,4 +296,39 @@ func (m *Manager) sendTicker(forces ...bool) {
 	}else{
 		time.AfterFunc(time.Second * define.DefaultManagerTicker, ticker)
 	}
+}
+
+//cb for worker cast opt
+func (m *Manager) cbForWorkerCastOpt(
+		data interface{},
+	) (interface{}, error) {
+	//check
+	if data == nil {
+		return nil, errors.New("invalid parameter")
+	}
+	req, ok := data.(msgCastReq)
+	if !ok || &req == nil {
+		return nil, errors.New("data should be `msgCastReq` type")
+	}
+
+	//process request data
+	connId := req.connId
+	dataBytes := req.data
+
+	//get connect
+	conn, err := m.Get(connId)
+	if err != nil || conn == nil {
+		return nil, errors.New("can't get conn by id")
+	}
+
+	//send to connect client
+	err = conn.SendMessage(connId, dataBytes)
+	return nil, err
+}
+
+//inter init
+func (m *Manager) interInit() {
+	//init inter cast workers
+	m.caster.SetCBForWorker(m.cbForWorkerCastOpt)
+	m.caster.CreateWorkers(define.DefaultWorkers)
 }

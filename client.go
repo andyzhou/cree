@@ -3,11 +3,13 @@ package cree
 import (
 	"errors"
 	"fmt"
+	"log"
+	"net"
+	"time"
+
 	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/face"
 	"github.com/andyzhou/cree/iface"
-	"log"
-	"net"
 )
 
 /*
@@ -24,8 +26,6 @@ type Client struct {
 	conn *net.Conn
 	connected bool
 	cbForRead func(data []byte) bool
-	lazySendChan chan []byte
-	closeChan chan bool
 	pack iface.IPacket
 }
 
@@ -33,28 +33,17 @@ type Client struct {
 func NewClient(
 			host string,
 			port int,
-			lazyChanSize ...int,
 		) *Client {
-	var (
-		lazySendChanSize int
-	)
-
-	//setup option parameter
-	lazySendChanSize = define.DefaultLazySendChanSize
-	if lazyChanSize != nil && len(lazyChanSize) > 0 {
-		lazySendChanSize = lazyChanSize[0]
-	}
-
 	//self init
 	this := &Client{
 		host: host,
 		port: port,
 		readBuffSize: define.DefaultTcpReadBuffSize,
-		lazySendChan: make(chan []byte, lazySendChanSize),
-		closeChan: make(chan bool, 1),
 		pack: face.NewPacket(),
 	}
-	go this.runLazySendProcess()
+
+	//inter init
+	this.interInit()
 	return this
 }
 
@@ -65,26 +54,21 @@ func (c *Client) Close() {
 		c.conn = nil
 	}
 	c.connected = false
-	if c.closeChan != nil {
-		close(c.closeChan)
-	}
-	if c.lazySendChan != nil {
-		close(c.lazySendChan)
-	}
-}
-
-//set max pack size
-func (c *Client) SetMaxPackSize(size int) {
-	c.pack.SetMaxPackSize(size)
 }
 
 //set cb for read data
-func (c *Client) SetCBForRead(cb func(data []byte) bool) bool {
+func (c *Client) SetCBForRead(
+	cb func(data []byte) bool) bool {
 	if cb == nil {
 		return false
 	}
 	c.cbForRead = cb
 	return true
+}
+
+//set max pack size
+func (c *Client) SetMaxPackSize(size int) {
+	c.pack.SetMaxPackSize(size)
 }
 
 //set read buff size
@@ -98,14 +82,8 @@ func (c *Client) SetReadBuffSize(size int) bool {
 
 //send packet data
 func (c *Client) SendPacket(
-					messageId uint32,
-					data []byte,
-					lazySend ...bool,
-				) error {
-	var (
-		isLazySend bool
-	)
-
+	messageId uint32,
+	data []byte) error {
 	//check
 	if messageId < 0 || data == nil {
 		return errors.New("invalid parameter")
@@ -117,24 +95,9 @@ func (c *Client) SendPacket(
 	//packet data
 	packet := c.packetData(messageId, data)
 
-	//check lazy mode
-	if lazySend != nil && len(lazySend) > 0 {
-		isLazySend = lazySend[0]
-	}
-
-	//try send to server
-	if isLazySend {
-		select {
-		case c.lazySendChan <- packet:
-		}
-	}else{
-		//send direct
-		_, err := (*c.conn).Write(packet)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	//send direct
+	_, err := (*c.conn).Write(packet)
+	return err
 }
 
 //connect server
@@ -161,8 +124,7 @@ func (c *Client) ConnServer() error {
 	c.connected = true
 
 	//spawn read process
-	go c.runReadProcess()
-
+	//go c.runReadProcess()
 	return nil
 }
 
@@ -171,7 +133,9 @@ func (c *Client) ConnServer() error {
 ////////////////
 
 //packet one data
-func (c *Client) packetData(messageId uint32, data []byte) []byte {
+func (c *Client) packetData(
+	messageId uint32,
+	data []byte) []byte {
 	message := face.NewMessage()
 	message.Id = messageId
 	message.SetData(data)
@@ -179,60 +143,33 @@ func (c *Client) packetData(messageId uint32, data []byte) []byte {
 	return byteData
 }
 
-//lazy send process
-func (c *Client) runLazySendProcess() {
-	var (
-		packet []byte
-		isOk bool
-		m any = nil
-	)
-
-	//defer
-	defer func() {
-		if err := recover(); err != m {
-			log.Println("Client:runLazySendProcess panic, err:", err)
-		}
-		close(c.closeChan)
-	}()
-
-	//loop
-	for {
-		select {
-		case packet, isOk = <- c.lazySendChan:
-			if isOk {
-				(*c.conn).Write(packet)
-			}
-		case <- c.closeChan:
-			return
-		}
-	}
-}
-
 //read process
 func (c *Client) runReadProcess() {
 	var (
-		buff []byte
+		buff = make([]byte, c.readBuffSize)
 		err error
 		m any = nil
 	)
 
-	//init buff
-	buff = make([]byte, c.readBuffSize)
-
 	//defer
 	defer func() {
 		if subErr := recover(); subErr != m {
-			log.Println("Client:runReadProcess panic, err:", err)
+			log.Println("client.runReadProcess panic, err:", err)
 		}
 		c.Close()
 	}()
 
 	//loop
 	for {
+		//check connect
+		if c.conn == nil {
+			break
+		}
+
 		//try read tcp data
 		_, err = (*c.conn).Read(buff)
 		if err != nil {
-			panic(any(err))
+			break
 		}
 
 		//call cb
@@ -240,4 +177,32 @@ func (c *Client) runReadProcess() {
 			c.cbForRead(buff)
 		}
 	}
+}
+
+//cb for consumer
+func (c *Client) cbForConsumer(
+	data interface{}) error {
+	//check
+	if data == nil {
+		return errors.New("invalid parameter")
+	}
+	packBytes, ok := data.([]byte)
+	if !ok || packBytes == nil {
+		return errors.New("data should be `[]byte` type")
+	}
+	if c.conn == nil {
+		return errors.New("client connect is nil")
+	}
+	//write to connect
+	_, err := (*c.conn).Write(packBytes)
+	return err
+}
+
+//inter init
+func (c *Client) interInit() {
+	//start delay process
+	sf := func() {
+		go c.runReadProcess()
+	}
+	time.AfterFunc(time.Second, sf)
 }

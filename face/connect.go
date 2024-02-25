@@ -2,14 +2,13 @@ package face
 
 import (
 	"errors"
-	"fmt"
-	"github.com/andyzhou/cree/define"
-	"github.com/andyzhou/cree/iface"
 	"io"
 	"log"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/andyzhou/cree/iface"
 )
 
 /*
@@ -22,13 +21,11 @@ import (
 type Connect struct {
 	tcpServer   iface.IServer //parent tcp server reference
 	packet      iface.IPacket //parent packet interface reference
-	connId      uint32
-	isClosed    bool
 	conn        *net.TCPConn //socket tcp connect
 	handler     iface.IHandler
-	messageChan chan []byte
-	closeChan   chan bool
 	propertyMap map[string]interface{}
+	connId      uint32
+	isClosed    bool
 	activeTime  int64 //last active timestamp
 	sync.RWMutex
 }
@@ -47,33 +44,25 @@ func NewConnect(
 		conn:conn,
 		connId:connectId,
 		handler:handler,
-		messageChan:make(chan []byte, define.ConnectWriteChanSize),
-		closeChan:make(chan bool, 1),
 		propertyMap:make(map[string]interface{}),
 	}
-
-	//spawn main process
-	go this.runMainProcess()
 	return this
 }
-
-//////////
-//api
-/////////
 
 //get last active time
 func (c *Connect) GetActiveTime() int64 {
 	return c.activeTime
 }
 
-//send message
-func (c *Connect) SendMessage(messageId uint32, data []byte) error {
-	var (
-		m any = nil
-	)
+//send message direct
+func (c *Connect) SendMessage(
+	messageId uint32, data []byte) error {
 	//basic check
 	if messageId <= 0 || data == nil {
 		return errors.New("invalid parameter")
+	}
+	if c.conn == nil {
+		return errors.New("connect is nil")
 	}
 
 	//create message
@@ -87,30 +76,20 @@ func (c *Connect) SendMessage(messageId uint32, data []byte) error {
 		return err
 	}
 
-	//try catch panic
-	defer func() {
-		if subErr := recover(); subErr != m {
-			errInfo := fmt.Errorf("cree.connect, panic err:%v", subErr)
-			log.Printf(errInfo.Error())
-			return
-		}
-	}()
-
 	//defer update active time
 	defer func() {
 		c.activeTime = time.Now().Unix()
 	}()
 
-	//send data to chan
-	c.messageChan <- byteData
-	return nil
+	//direct send with locker
+	_, err = (*c.conn).Write(byteData)
+	return err
 }
 
 //start
 func (c *Connect) Start() {
 	//start read and write goroutine
 	go c.startRead()
-	go c.startWrite()
 
 	//call hook of connect start
 	c.tcpServer.CallOnConnStart(c)
@@ -131,17 +110,10 @@ func (c *Connect) Stop() {
 		//close connect
 		c.conn.Close()
 		c.isClosed = true
-
-		//close chan
-		close(c.messageChan)
-		close(c.closeChan)
 	}()
 
 	//call hook of connect closed
 	c.tcpServer.CallOnConnStop(c)
-
-	//close tcp
-	c.closeChan <- true
 
 	//remove from manager
 	c.tcpServer.GetManager().Remove(c)
@@ -175,6 +147,7 @@ func (c *Connect) RemoveProperty(key string) {
 
 //set property
 func (c *Connect) SetProperty(key string, value interface{}) bool {
+	//check
 	if key == "" || value == nil {
 		return false
 	}
@@ -183,12 +156,13 @@ func (c *Connect) SetProperty(key string, value interface{}) bool {
 	c.Lock()
 	defer c.Unlock()
 	c.propertyMap[key] = value
-
 	return true
 }
 
 //get property
 func (c *Connect) GetProperty(key string) (interface{}, error) {
+	c.Lock()
+	defer c.Unlock()
 	v, ok := c.propertyMap[key]
 	if !ok {
 		return nil, errors.New("no property value")
@@ -199,16 +173,6 @@ func (c *Connect) GetProperty(key string) (interface{}, error) {
 ///////////////
 //private func
 //////////////
-
-//run main process
-func (c *Connect) runMainProcess() {
-	//call hook of connect start
-	c.tcpServer.CallOnConnStart(c)
-
-	//start read and write goroutine
-	go c.startRead()
-	go c.startWrite()
-}
 
 //read data from client
 func (c *Connect) startRead() {
@@ -222,7 +186,7 @@ func (c *Connect) startRead() {
 	//defer function
 	defer func() {
 		if subErr := recover(); subErr != m {
-			log.Println("Connect:startRead panic, err:", subErr)
+			log.Println("cree.connect.startRead panic, err:", subErr)
 		}
 		//stop connect
 		c.Stop()
@@ -236,14 +200,14 @@ func (c *Connect) startRead() {
 		//read message head
 		_, err = io.ReadFull(c.conn, header)
 		if err != nil {
-			log.Println("cree.connect, read message header failed, err:", err.Error())
+			//log.Println("cree.connect, read message header failed, err:", err.Error())
 			break
 		}
 
 		//unpack header
 		message, err = c.packet.UnPack(header)
 		if err != nil {
-			log.Println("cree.connect, unpack message failed, err:", err.Error())
+			log.Println("cree.connect.startRead, unpack message failed, err:", err.Error())
 			break
 		}
 
@@ -252,7 +216,7 @@ func (c *Connect) startRead() {
 			data = make([]byte, message.GetLen())
 			_, err = io.ReadFull(c.conn, data)
 			if err != nil {
-				log.Println("cree.connect, read data failed, err:", err.Error())
+				log.Println("cree.connect.startRead, read data failed, err:", err.Error())
 				break
 			}
 			message.SetData(data)
@@ -261,52 +225,25 @@ func (c *Connect) startRead() {
 		//init client request
 		req := NewRequest(c, message)
 
-		//send request to handler queue
-		c.handler.SendToQueue(req)
+		//handle request message
+		c.handler.DoMessageHandle(req)
 	}
 }
 
-//send data for client
-func (c *Connect) startWrite() {
-	var (
-		data = make([]byte, 0)
-		err error
-		isOk, needQuit bool
-		m any = nil
-	)
-
-	defer func() {
-		if subErr := recover(); subErr != m {
-			log.Printf("cree.Connect.startWrite panic, err:%v", subErr)
-		}
-		//stop connect
-		c.Stop()
-	}()
-
-	//loop
-	for {
-		if needQuit && len(c.messageChan) <= 0 {
-			break
-		}
-		select {
-		case data, isOk = <- c.messageChan:
-			{
-				if isOk {
-					if c.conn == nil {
-						needQuit = true
-						break
-					}
-					_, err = c.conn.Write(data)
-					if err != nil {
-						log.Println("cree.connect, send data to client failed, err:", err.Error())
-						return
-					}
-				}
-			}
-		case <- c.closeChan:
-			{
-				return
-			}
-		}
+//cb for list consumer
+func (c *Connect) cbForConsumer(data interface{}) (interface{}, error) {
+	//check
+	if data == nil {
+		return nil, errors.New("invalid parameter")
 	}
+	dataBytes, ok := data.([]byte)
+	if !ok || dataBytes == nil {
+		return nil, errors.New("data should be `[]byte` type")
+	}
+	if c.conn == nil {
+		return nil, errors.New("connect is nil")
+	}
+	//send to connect
+	_, err := (*c.conn).Write(dataBytes)
+	return nil, err
 }

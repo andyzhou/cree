@@ -2,13 +2,16 @@ package main
 
 import (
 	"fmt"
-	"github.com/andyzhou/cree"
-	"github.com/andyzhou/cree/face"
-	"github.com/andyzhou/cree/iface"
 	"log"
+	"net/http"
 	"os"
 	"runtime/pprof"
 	"time"
+
+	"github.com/andyzhou/cree"
+	"github.com/andyzhou/cree/face"
+	"github.com/andyzhou/cree/iface"
+	_ "net/http/pprof"
 )
 
 /*
@@ -18,18 +21,15 @@ import (
  */
 
 func OnConnAdd(conn iface.IConnect) {
-	log.Println("add conn:", conn)
+	//log.Println("add conn:", conn)
 }
 
 func OnConnLost(conn iface.IConnect) {
-	log.Println("lost conn:", conn)
+	//log.Println("lost conn:", conn)
 }
 
-func main() {
-	//setup
-	host := "127.0.0.1"
-	port := 7800
-
+//cpu pprof
+func cpuPprof()  {
 	//cpu pprof
 	f, _ := os.OpenFile("cpu.pprof", os.O_CREATE|os.O_RDWR, 0644)
 	pprof.StartCPUProfile(f)
@@ -39,16 +39,31 @@ func main() {
 		f.Close()
 		fmt.Println("pprof cpu finished")
 	}
-	time.AfterFunc(time.Second * 15, sf)
+	time.AfterFunc(time.Second * 20, sf)
+}
 
+//run pprof
+func runPProf()  {
+	ip := "0.0.0.0:8080"
+	if err := http.ListenAndServe(ip, nil); err != nil {
+		fmt.Printf("start pprof failed on %s\n", ip)
+	}
+}
+
+func main() {
+	//setup
+	host := "127.0.0.1"
+	port := 7800
 
 	//set server conf
 	conf := &cree.ServerConf{
 		Host: host,
 		Port: port,
 		TcpVersion: "tcp",
-		MaxConnects: 128,
 	}
+
+	//start pprof
+	go runPProf()
 
 	//init server
 	server := cree.NewServer(conf)
@@ -58,8 +73,7 @@ func main() {
 	server.SetOnConnStop(OnConnLost)
 
 	//setting for performance
-	server.SetMaxConnects(100)
-	//server.SetHandlerQueues(1)
+	//server.SetMaxConnects(100)
 
 	//init cb api
 	testApi := NewTestApi()
@@ -68,6 +82,7 @@ func main() {
 	server.AddRouter(1, testApi)
 
 	fmt.Printf("start server on %s:%d\n", host, port)
+
 	//start service
 	server.Start()
 }

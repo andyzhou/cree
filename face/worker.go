@@ -1,87 +1,143 @@
 package face
 
 import (
-	"github.com/andyzhou/cree/define"
-	"github.com/andyzhou/cree/iface"
-	"log"
+	"errors"
+	"sync"
+	"time"
 )
 
 /*
- * face for handler son worker
- * @author <AndyZhou>
- * @mail <diudiu8848@163.com>
+ * worker face
  */
 
-//son worker face
-type HandlerWorker struct {
-	idx int
-	handler iface.IHandler //parent handler reference
-	queueChan chan iface.IRequest
-	closeChan chan bool
+//inter type
+type (
+	SonWorker struct {
+		id int
+		queue *Queue
+		cbForWorker func(interface{}) (interface{}, error)
+	}
+)
+
+//face info
+type Worker struct {
+	cbForWorker func(interface{}) (interface{}, error)
+	workerMap map[int]*SonWorker
+	workerId int
+	sync.RWMutex
 }
 
 //construct
-func NewHandlerWorker(idx int, handler iface.IHandler) *HandlerWorker {
-	//self init
-	this := &HandlerWorker{
-		idx: idx,
-		handler:handler,
-		queueChan:make(chan iface.IRequest, define.HandlerQueueChanSize),
-		closeChan:make(chan bool, 1),
+func NewWorker() *Worker {
+	this := &Worker{
+		workerMap: map[int]*SonWorker{},
 	}
-	//spawn main process
-	go this.runMainProcess()
 	return this
 }
 
-//handler worker quit
-func (f *HandlerWorker) Quit() {
-	var (
-		m any = nil
-	)
-	defer func() {
-		if subErr := recover(); subErr != m {
-			log.Println("HandlerWorker:Quit panic, err:", subErr)
-		}
-	}()
-	if f.closeChan != nil {
-		f.closeChan <- true
+//quit
+func (f *Worker) Quit() {
+	f.Lock()
+	defer f.Unlock()
+	for k, v := range f.workerMap {
+		v.Quit()
+		delete(f.workerMap, k)
 	}
 }
 
-//run son worker main process
-func (f *HandlerWorker) runMainProcess() {
-	var (
-		req iface.IRequest
-		isOk bool
-		m any = nil
-	)
-
-	defer func() {
-		if err := recover(); err != m {
-			log.Println("HandlerWorker:mainProcess panic, err:", err)
-		}
-		//process left queue
-		for {
-			req, isOk = <- f.queueChan
-			if !isOk || req == nil {
-				break
-			}
-			f.handler.DoMessageHandle(req)
-		}
-		close(f.queueChan)
-	}()
-
-	//loop
-	for {
-		select {
-		case req, isOk = <- f.queueChan:
-			if isOk && &req != nil {
-				//call handler to process message request
-				f.handler.DoMessageHandle(req)
-			}
-		case <- f.closeChan:
-			return
-		}
+//set cb for worker opt, STEP-1
+func (f *Worker) SetCBForWorker(cb func(interface{}) (interface{}, error)) {
+	if cb == nil {
+		return
 	}
+	f.cbForWorker = cb
+}
+
+//create batch workers, STEP-2
+func (f *Worker) CreateWorkers(num int) error {
+	if num <= 0 {
+		return errors.New("invalid parameter")
+	}
+	f.Lock()
+	defer f.Unlock()
+	for i := 0; i < num; i++ {
+		f.workerId++
+		sw := NewSonWorker(f.workerId, f.cbForWorker)
+		f.workerMap[f.workerId] = sw
+	}
+	return nil
+}
+
+//send data to target son worker
+func (f *Worker) SendToWorker(data interface{}, ids ...int64) error {
+	var (
+		id int64
+		hashIdx int
+	)
+	//check
+	if data == nil {
+		return errors.New("invalid parameter")
+	}
+	if ids != nil && len(ids) > 0 {
+		id = ids[0]
+	}
+
+	if id > 0 {
+		//hashed by id
+		hashIdx = int(id % int64(f.workerId))
+	}else{
+		//hashed by timestamp
+		hashIdx = int(time.Now().UnixNano() % int64(f.workerId))
+	}
+
+	//get son worker
+	f.Lock()
+	defer f.Unlock()
+	sw, ok := f.workerMap[hashIdx]
+	if !ok || sw == nil {
+		sw, _ = f.workerMap[0]
+	}
+	if sw == nil {
+		return errors.New("can't get son worker")
+	}
+
+	//send to son worker queue
+	err := sw.SendData(data)
+	return err
+}
+
+/////////////////////
+//api for son worker
+/////////////////////
+
+//construct
+func NewSonWorker(id int, cb func(interface{}) (interface{}, error)) *SonWorker {
+	//self init
+	this := &SonWorker{
+		id: id,
+		cbForWorker: cb,
+		queue: NewQueue(),
+	}
+	//set cb for queue
+	this.queue.SetCallback(cb)
+	return this
+}
+
+//son quit
+func (f *SonWorker) Quit() {
+	f.queue.Quit()
+}
+
+//send data to queue
+func (f *SonWorker) SendData(data interface{}) error {
+	//check
+	if data == nil {
+		return errors.New("invalid parameter")
+	}
+	if f.queue == nil {
+		return errors.New("inter queue is nil")
+	}
+	//send to queue
+	_, err := f.queue.SendData(data)
+	return err
 }

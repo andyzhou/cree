@@ -3,15 +3,14 @@ package define
 //default values define
 const (
 	DefaultPort = 5300
-	DefaultMinConnects = 128
-	DefaultMaxConnects = 1024
 	DefaultTcpVersion = "tcp"
 	DefaultTcpReadBuffSize = 1024
-	DefaultLazySendChanSize = 1024
+	DefaultQueueSize = 1024
+	DefaultWorkers = 9
 	DefaultManagerTicker = 60 //xx seconds
 	DefaultUnActiveSeconds = 60 //xx seconds
+	DefaultGCRate = 300 //xx seconds
 )
-
 
 //general
 const (

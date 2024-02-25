@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/andyzhou/cree"
 	"log"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/andyzhou/cree"
 )
 
 /*
@@ -22,14 +23,17 @@ func CBForRead(data []byte) bool {
 }
 
 //test write
-func ClientWrite(client *cree.Client, testTimes int, wg *sync.WaitGroup) {
+func ClientWrite(
+	client *cree.Client,
+	testTimes int,
+	wg *sync.WaitGroup) {
 	messageId := uint32(1)
 	maxTimes := 50
 	times := 1
 	for {
 		//send packet data
 		data := fmt.Sprintf("time:%d", time.Now().Unix())
-		err := client.SendPacket(messageId, []byte(data), true)
+		err := client.SendPacket(messageId, []byte(data))
 		if err != nil {
 			log.Println("ClientWrite failed, err:", err.Error())
 		}

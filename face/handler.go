@@ -3,12 +3,9 @@ package face
 import (
 	"errors"
 	"fmt"
-	"github.com/andyzhou/cree/define"
-	"github.com/andyzhou/cree/iface"
-	"log"
-	"math/rand"
 	"sync"
-	"time"
+
+	"github.com/andyzhou/cree/iface"
 )
 
 /*
@@ -20,75 +17,17 @@ import (
  //face info
  type Handler struct {
  	redirectRouter iface.IRouter
- 	handlerMap sync.Map //msgId -> iRouter
- 	handlerQueue sync.Map //workerId -> iWorker
-    queueSize int
+ 	handlerMap map[uint32]iface.IRouter //msgId -> iRouter
+    sync.RWMutex
  }
  
  //construct
 func NewHandler() *Handler {
 	//self init
 	this := &Handler{
-		queueSize:define.HandlerQueueSizeDefault,
-		handlerMap:sync.Map{},
-		handlerQueue:sync.Map{},
+		handlerMap: map[uint32]iface.IRouter{},
 	}
-	//inter init
-	this.interInit()
 	return this
-}
-
-/////////
-//api
-/////////
-
-//handler quit
-func (f *Handler) Quit() {
-	sf := func(k, v interface{}) bool {
-		hq, ok := v.(*HandlerWorker)
-		if ok && hq != nil {
-			hq.Quit()
-		}
-		return true
-	}
-	f.handlerQueue.Range(sf)
-	f.handlerQueue = sync.Map{}
-}
-
-//set and modify queue size
-func (f *Handler) SetQueueSize(queueSize int) {
-	if queueSize <= 0 {
-		return
-	}
-	if queueSize > define.HandlerQueueSizeMax {
-		queueSize = define.HandlerQueueSizeMax
-	}
-	f.reSizeQueueSize(queueSize)
- }
-
-//message handle in queue
-func (f *Handler) SendToQueue(req iface.IRequest) {
-	var (
-		m any = nil
-	)
-	//get random worker
-	worker := f.getRandomWorker()
-	if worker == nil {
-		return
-	}
-
-	//try catch panic
-	defer func() {
-		if err := recover(); err != m {
-			log.Println("Handler::SendToQueue panic happened, err:", err)
-			return
-		}
-	}()
-
-	//async send to worker queue
-	select {
-	case worker.queueChan <- req:
-	}
 }
 
 //message handle
@@ -106,7 +45,6 @@ func (f *Handler) DoMessageHandle(req iface.IRequest) error {
 			return nil
 		}
 		tips := fmt.Sprintf("no handler for message id:%d", messageId)
-		log.Println("Handler::DoMessageHandle, tips:", tips)
 		return errors.New(tips)
 	}
 
@@ -131,17 +69,19 @@ func (f *Handler) AddRouter(messageId uint32, router iface.IRouter) error {
 	}
 
 	//add into map
-	f.handlerMap.Store(messageId, router)
+	f.Lock()
+	defer f.Unlock()
+	f.handlerMap[messageId] = router
 	return nil
 }
 
 //register redirect for unsupported message id
 //used for all requests redirect to handler
 func (f *Handler) RegisterRedirect(router iface.IRouter) error {
+	//check
 	if router == nil {
 		return errors.New("invalid parameter")
 	}
-
 	//set router
 	f.redirectRouter = router
 	return nil
@@ -151,90 +91,16 @@ func (f *Handler) RegisterRedirect(router iface.IRouter) error {
 //private func
 ///////////////
 
-//resize handler queue
-func (f *Handler) reSizeQueueSize(queueSize int) {
-	if f.queueSize == queueSize {
-		//do nothing
-		return
-	}
-
-	if f.queueSize > queueSize {
-		//remove tail active queues
-		for i := queueSize; i <= f.queueSize; i++ {
-			sonQueue, ok := f.handlerQueue.Load(i)
-			if ok && sonQueue != nil {
-				hw, isOk := sonQueue.(*HandlerWorker)
-				if isOk && hw != nil {
-					hw.Quit()
-					f.handlerQueue.Delete(i)
-				}
-			}
-		}
-		return
-	}
-
-	//dynamic create new handler worker
-	for i := f.queueSize; i <= queueSize; i++ {
-		worker := NewHandlerWorker(i, f)
-		f.handlerQueue.Store(i, worker)
-	}
-}
-
-//get random worker
-func (f *Handler) getRandomWorker() *HandlerWorker {
-	//basic check
-	if f.queueSize <= 0 {
-		return nil
-	}
-	//get random index
-	randomIndex := f.getRandomVal(f.queueSize) + 1
-
-	//get relate worker
-	worker := f.getWorker(randomIndex)
-	return worker
-}
-
-//get rand number
-func (f *Handler) getRandomVal(maxVal int) int {
-	randSand := rand.NewSource(time.Now().UnixNano())
-	r := rand.New(randSand)
-	return r.Intn(maxVal)
-}
-
-//get worker
-func (f *Handler) getWorker(idx int) *HandlerWorker {
-	v, ok := f.handlerQueue.Load(idx)
-	if !ok || v == nil {
-		return nil
-	}
-	worker, subOk := v.(*HandlerWorker)
-	if !subOk || worker == nil {
-		return nil
-	}
-	return worker
-}
-
 //get router of message id
 func (f *Handler) getRouter(msgId uint32) iface.IRouter {
 	if msgId < 0 {
 		return nil
 	}
-	v, ok := f.handlerMap.Load(msgId)
+	f.Lock()
+	defer f.Unlock()
+	v, ok := f.handlerMap[msgId]
 	if !ok || v == nil {
 		return nil
 	}
-	router, subOk := v.(iface.IRouter)
-	if !subOk || router == nil {
-		return nil
-	}
-	return router
-}
-
-//inter init
-func (f *Handler) interInit() {
-	//init worker pool
-	for i := 1; i <= f.queueSize; i++ {
-		worker := NewHandlerWorker(i, f)
-		f.handlerQueue.Store(i, worker)
-	}
+	return v
 }

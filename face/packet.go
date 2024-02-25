@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+
 	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/iface"
 )
@@ -38,10 +39,6 @@ func NewPacket() *Packet {
 	}
 	return this
 }
-
-////////
-//api
-////////
 
 //set max pack size
 func (f *Packet) SetMaxPackSize(size int) {
