@@ -28,7 +28,7 @@ func ClientWrite(
 	testTimes int,
 	wg *sync.WaitGroup) {
 	messageId := uint32(1)
-	maxTimes := 50
+	maxTimes := 100
 	times := 1
 	for {
 		//send packet data

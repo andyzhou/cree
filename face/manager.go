@@ -236,10 +236,11 @@ func (m *Manager) checkUnActiveConn() {
 
 	//border value check
 	if m.connects <= 0 {
+		atomic.StoreInt32(&m.connects, 0)
 		if needReset {
 			m.connectMap = map[uint32]iface.IConnect{}
+			runtime.GC()
 		}
-		atomic.StoreInt32(&m.connects, 0)
 	}
 }
 
