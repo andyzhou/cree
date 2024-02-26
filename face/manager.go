@@ -35,7 +35,6 @@ type (
 
  //face info
  type Manager struct {
-	caster *Worker //caste lazy message
 	connUnActiveSeconds int //max un-active seconds or force closed
 	connectMap map[uint32]iface.IConnect
  	connects int32 //atomic value
@@ -57,15 +56,11 @@ func GetManager() *Manager {
 func NewManager() *Manager {
 	//self init
 	this := &Manager{
-		caster: NewWorker(),
 		unActiveSeconds: define.DefaultUnActiveSeconds,
 		connectMap: map[uint32]iface.IConnect{},
 		tickChan: make(chan struct{}, 1),
 		closeChan: make(chan bool, 1),
 	}
-
-	//inter init
-	this.interInit()
 
 	//spawn son process
 	go this.checkUnActiveConnProcess()
@@ -74,7 +69,6 @@ func NewManager() *Manager {
 
 //quit
 func (m *Manager) Quit() {
-	m.caster.Quit()
 	if m.closeChan != nil {
 		m.closeChan <- true
 	}
@@ -86,34 +80,6 @@ func (m *Manager) SetUnActiveSeconds(val int) {
 		return
 	}
 	m.unActiveSeconds = val
-}
-
-//cast message
-func (m *Manager) CastMessage(data []byte, connIds ...uint32) error {
-	var (
-		err error
-	)
-	//check
-	if data == nil {
-		return errors.New("invalid parameter")
-	}
-
-	//init request
-	req := msgCastReq{
-		data: data,
-	}
-	if connIds == nil || len(connIds) <= 0 {
-		//cast to all
-		req.forAll = true
-		err = m.caster.SendToWorker(req)
-	}else{
-		//cast to assigned conn ids
-		for _, connId := range connIds {
-			req.connId = connId
-			err = m.caster.SendToWorker(req, int64(connId))
-		}
-	}
-	return err
 }
 
 //clear all
@@ -133,6 +99,9 @@ func (m *Manager) Clear() {
 	}
 	m.connectMap = map[uint32]iface.IConnect{}
 	atomic.StoreInt32(&m.connects, 0)
+
+	//clean bucket
+	GetBucket().Quit()
 }
 
 //get map length
@@ -157,6 +126,7 @@ func (m *Manager) Remove(conn iface.IConnect) error {
 	if m.connectMap == nil {
 		return errors.New("no any connections")
 	}
+
 	//check
 	hasExists := m.connIsExists(conn.GetConnId())
 	if hasExists {
@@ -173,7 +143,10 @@ func (m *Manager) Remove(conn iface.IConnect) error {
 			runtime.GC()
 		}
 	}
-	return nil
+
+	//remove from bucket
+	err := GetBucket().RemoveConnect(int64(conn.GetConnId()))
+	return err
 }
 
 //add connect
@@ -231,6 +204,9 @@ func (m *Manager) checkUnActiveConn() {
 			delete(m.connectMap, k)
 			atomic.AddInt32(&m.connects, -1)
 			needReset = true
+
+			//remove from bucket
+			GetBucket().RemoveConnect(int64(k))
 		}
 	}
 
@@ -325,11 +301,4 @@ func (m *Manager) cbForWorkerCastOpt(
 	//send to connect client
 	err = conn.SendMessage(connId, dataBytes)
 	return nil, err
-}
-
-//inter init
-func (m *Manager) interInit() {
-	//init inter cast workers
-	m.caster.SetCBForWorker(m.cbForWorkerCastOpt)
-	m.caster.CreateWorkers(define.DefaultWorkers)
 }

@@ -13,7 +13,7 @@ import "net"
  	Start()
  	Stop()
  	SendMessage(uint32, []byte) error
-	ReadMessage() error
+	ReadMessage() (IRequest, error)
 
 	//get base
 	GetActiveTime() int64

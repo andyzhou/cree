@@ -27,6 +27,8 @@ type ServerConf struct {
 	TcpVersion   string //like tcp, tcp4, tcp6
 	MaxConnects  int32
 	MaxPackSize  int //pack data max size
+	Buckets      int //bucket size for tcp connect
+	BucketReadRate float64 //bucket data read rate
 	LittleEndian bool
 	GCRate		 int //xx seconds
 }
@@ -47,7 +49,6 @@ type Server struct {
 	//others
 	gcCloseChan chan bool
 	gcTicker *time.Ticker
-	connQueue *face.Queue
 	wg sync.WaitGroup
 	sync.RWMutex
 }
@@ -79,12 +80,18 @@ func NewServer(configs ...*ServerConf) *Server {
 		conf.GCRate = define.DefaultGCRate
 	}
 
+	if conf.Buckets <= 0 {
+		conf.Buckets = define.DefaultBuckets
+	}
+	if conf.BucketReadRate <= 0 {
+		conf.BucketReadRate = define.DefaultBucketReadRate
+	}
+
 	//self init
 	this := &Server{
 		conf: conf,
 		packet: face.NewPacket(),
 		handler: face.NewHandler(),
-		connQueue: face.NewQueue(),
 		gcCloseChan: make(chan bool, 1),
 	}
 
@@ -102,7 +109,6 @@ func (s *Server) Start() {
 //stop
 func (s *Server) Stop() {
 	s.needQuit = true
-	s.connQueue.Quit()
 	face.GetManager().Clear()
 	s.gcCloseChan <- true
 	s.wg.Done()
@@ -222,8 +228,8 @@ func (s *Server) watchConn(listener *net.TCPListener) error {
 		//add connect into manager
 		s.GetManager().Add(connect)
 
-		//push into conn list queue
-		s.connQueue.SendData(connect)
+		//push into bucket
+		face.GetBucket().AddConnect(connect)
 	}
 	return nil
 }
@@ -285,8 +291,9 @@ func (s *Server) interInit() bool {
 	//init manager instance
 	face.GetManager()
 
-	//set cb for new conn consume
-	s.connQueue.SetCallback(s.cbForNewConnConsume)
+	//setup bucket
+	//face.GetBucket().SetCBForReadMessage()
+	face.GetBucket().CreateSonWorkers(s.conf.Buckets, s.conf.BucketReadRate)
 
 	//start gc ticker
 	gcRate := time.Duration(s.conf.GCRate) * time.Second

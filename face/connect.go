@@ -90,7 +90,7 @@ func (c *Connect) SendMessage(
 //start
 func (c *Connect) Start() {
 	//start read and write goroutine
-	go c.startRead()
+	//go c.startRead()
 
 	//call hook of connect start
 	c.tcpServer.CallOnConnStart(c)
@@ -111,6 +111,7 @@ func (c *Connect) Stop() {
 		//close connect
 		c.conn.Close()
 		c.isClosed = true
+		log.Printf("cree.Connect.stop, connId:%v\n", c.connId)
 	}()
 
 	//call hook of connect closed
@@ -121,13 +122,13 @@ func (c *Connect) Stop() {
 }
 
 //read message
-func (c *Connect) ReadMessage() error {
+func (c *Connect) ReadMessage() (iface.IRequest, error) {
 	//init header
 	header := make([]byte, c.packet.GetHeadLen())
 
 	//read one message
-	err := c.readOneMessage(header)
-	return err
+	req, err := c.readOneMessage(header)
+	return req, err
 }
 
 //get remote client address
@@ -207,7 +208,7 @@ func (c *Connect) startRead() {
 	//read data in the loop
 	for {
 		//read one message
-		err = c.readOneMessage(header)
+		_, err = c.readOneMessage(header)
 		if err != nil {
 			break
 		}
@@ -215,26 +216,26 @@ func (c *Connect) startRead() {
 }
 
 //read one message
-func (c *Connect) readOneMessage(header []byte) error {
+func (c *Connect) readOneMessage(header []byte) (iface.IRequest, error) {
 	//check
 	if header == nil {
-		return errors.New("invalid header parameter")
+		return nil, errors.New("invalid header parameter")
 	}
 	if c.conn == nil {
-		return errors.New("connect is nil")
+		return nil, errors.New("connect is nil")
 	}
 
 	//read message head
 	_, err := io.ReadFull(c.conn, header)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	//unpack header
 	message, subErr := c.packet.UnPack(header)
 	if subErr != nil {
 		errTip := fmt.Errorf("cree.connect.startRead, unpack message failed, err:%v", subErr.Error())
-		return errTip
+		return nil, errTip
 	}
 
 	//read real data and storage into message object
@@ -243,7 +244,7 @@ func (c *Connect) readOneMessage(header []byte) error {
 		_, err = io.ReadFull(c.conn, data)
 		if err != nil {
 			errTip := fmt.Errorf("cree.connect.startRead, read data failed, err:%v", err.Error())
-			return errTip
+			return nil, errTip
 		}
 		message.SetData(data)
 	}
@@ -253,7 +254,7 @@ func (c *Connect) readOneMessage(header []byte) error {
 
 	//handle request message
 	err = c.handler.DoMessageHandle(req)
-	return err
+	return req, err
 }
 
 //cb for list consumer

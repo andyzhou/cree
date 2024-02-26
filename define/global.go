@@ -10,6 +10,9 @@ const (
 	DefaultManagerTicker = 60 //xx seconds
 	DefaultUnActiveSeconds = 60 //xx seconds
 	DefaultGCRate = 300 //xx seconds
+
+	DefaultBuckets = 3
+	DefaultBucketReadRate = 0.2 //xx seconds
 )
 
 //general

@@ -5,3 +5,4 @@ example/server
 example/client
 *_darwin
 *.pprof
+vendor/
