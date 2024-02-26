@@ -18,11 +18,17 @@ import (
  * @mail <diudiu8848@163.com>
  */
 
+//client config
+type ClientConf struct {
+	Host string
+	Port int
+	ReadBuffSize int
+	ConnTimeOut time.Duration
+}
+
 //face info
 type Client struct {
-	host string
-	port int
-	readBuffSize int
+	conf *ClientConf
 	conn *net.Conn
 	connected bool
 	cbForRead func(data []byte) bool
@@ -31,14 +37,11 @@ type Client struct {
 
 //construct
 func NewClient(
-			host string,
-			port int,
+			conf *ClientConf,
 		) *Client {
 	//self init
 	this := &Client{
-		host: host,
-		port: port,
-		readBuffSize: define.DefaultTcpReadBuffSize,
+		conf: conf,
 		pack: face.NewPacket(),
 	}
 
@@ -76,7 +79,7 @@ func (c *Client) SetReadBuffSize(size int) bool {
 	if size <= 0 {
 		return false
 	}
-	c.readBuffSize = size
+	c.conf.ReadBuffSize = size
 	return true
 }
 
@@ -103,7 +106,7 @@ func (c *Client) SendPacket(
 //connect server
 func (c *Client) ConnServer() error {
 	//check
-	if c.host == "" || c.port <= 0 {
+	if c.conf.Host == "" || c.conf.Port <= 0 {
 		return errors.New("host or port is invalid")
 	}
 	if c.connected {
@@ -111,10 +114,11 @@ func (c *Client) ConnServer() error {
 	}
 
 	//format address
-	address := fmt.Sprintf("%s:%d", c.host, c.port)
+	address := fmt.Sprintf("%s:%d", c.conf.Host, c.conf.Port)
 
 	//try connect server
-	conn, err := net.Dial("tcp", address)
+	timeOut := time.Duration(define.DefaultTcpDialTimeOut) * time.Second
+	conn, err := net.DialTimeout("tcp", address, timeOut)
 	if err != nil {
 		return err
 	}
@@ -146,7 +150,7 @@ func (c *Client) packetData(
 //read process
 func (c *Client) runReadProcess() {
 	var (
-		buff = make([]byte, c.readBuffSize)
+		buff = make([]byte, c.conf.ReadBuffSize)
 		err error
 		m any = nil
 	)
@@ -200,6 +204,14 @@ func (c *Client) cbForConsumer(
 
 //inter init
 func (c *Client) interInit() {
+	//check config
+	if c.conf.ReadBuffSize <= 0 {
+		c.conf.ReadBuffSize = define.DefaultTcpReadBuffSize
+	}
+	if c.conf.ConnTimeOut <= 0 {
+		c.conf.ConnTimeOut = time.Duration(define.DefaultTcpDialTimeOut)
+	}
+
 	//start delay process
 	sf := func() {
 		go c.runReadProcess()

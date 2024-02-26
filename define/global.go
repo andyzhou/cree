@@ -5,8 +5,8 @@ const (
 	DefaultPort = 5300
 	DefaultTcpVersion = "tcp"
 	DefaultTcpReadBuffSize = 1024
-	DefaultQueueSize = 1024
-	DefaultWorkers = 9
+
+	DefaultTcpDialTimeOut = 10 //xx seconds
 	DefaultManagerTicker = 60 //xx seconds
 	DefaultUnActiveSeconds = 60 //xx seconds
 	DefaultGCRate = 300 //xx seconds

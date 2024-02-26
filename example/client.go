@@ -28,7 +28,6 @@ func ClientWrite(
 	testTimes int,
 	wg *sync.WaitGroup) {
 	messageId := uint32(1)
-	maxTimes := 100
 	times := 1
 	for {
 		//send packet data
@@ -39,7 +38,7 @@ func ClientWrite(
 		}
 		time.Sleep(time.Second/5)
 		times++
-		if times >= maxTimes {
+		if testTimes > 0 && times >= testTimes {
 			break
 		}
 	}
@@ -52,29 +51,37 @@ func main() {
 		wg sync.WaitGroup
 		host = "127.0.0.1"
 		port = 7800
-		testTimes = 50
+		testTimes = 0
 	)
 
 	//wg
 	wg.Add(1)
 
-	//init new client
-	client := cree.NewClient(host, port)
-
-	//setup
-	client.SetCBForRead(CBForRead)
-
-	//try connect server
-	err := client.ConnServer()
-	if err != nil {
-		log.Println(err)
-		wg.Done()
-		os.Exit(1)
+	//set client conf
+	clientCfg := &cree.ClientConf{
+		Host: host,
+		Port: port,
 	}
 
-	//spawn write testing
-	log.Println("client start")
-	go ClientWrite(client, testTimes, &wg)
+	for i := 0; i < 50; i++ {
+		//init new client
+		client := cree.NewClient(clientCfg)
+
+		//setup
+		client.SetCBForRead(CBForRead)
+
+		//try connect server
+		err := client.ConnServer()
+		if err != nil {
+			log.Println(err)
+			wg.Done()
+			os.Exit(1)
+		}
+
+		//spawn write testing
+		log.Println("client start")
+		go ClientWrite(client, testTimes, &wg)
+	}
 
 	wg.Wait()
 	log.Println("client closed")

@@ -15,8 +15,13 @@ var (
 
 //connect client
 func connClient() (*cree.Client, error) {
+	//set client conf
+	clientCfg := &cree.ClientConf{
+		Host: host,
+		Port: port,
+	}
 	//init new client
-	client := cree.NewClient(host, port)
+	client := cree.NewClient(clientCfg)
 	err := client.ConnServer()
 	return client, err
 }
@@ -40,7 +45,9 @@ func BenchmarkConnect(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		c, err := connClient()
 		if err != nil {
+			b.Errorf("benmark connect failed, err:%v\n", err.Error())
 			failed++
+			break
 		}else{
 			clientMap[i] = c
 			succeed++
