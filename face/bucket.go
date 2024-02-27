@@ -22,17 +22,6 @@ var (
 	_bucketOnce sync.Once
 )
 
-//inter type
-type (
-	SonBucket struct {
-		connectMap map[uint32]iface.IConnect
-		connects int32 //atomic value
-		readTickChan chan struct{}
-		readCloseChan chan struct{}
-		sync.RWMutex
-	}
-)
-
 //face info
 type Bucket struct {
 	worker *queue.Worker
