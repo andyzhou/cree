@@ -24,6 +24,7 @@ type ClientConf struct {
 	Port int
 	ReadBuffSize int
 	ConnTimeOut time.Duration
+	WriteTimeOut int //xx seconds
 }
 
 //son client
@@ -94,9 +95,6 @@ func (c *Client) SetReadBuffSize(size int) bool {
 func (c *Client) SendPacket(
 	messageId uint32,
 	data []byte) error {
-	var (
-		err error
-	)
 	//check
 	if messageId < 0 || data == nil {
 		return errors.New("invalid parameter")
@@ -108,8 +106,14 @@ func (c *Client) SendPacket(
 	//packet data
 	packet := c.packetData(messageId, data)
 
+	//set write timeout
+	writeTimeOut := time.Duration(c.conf.WriteTimeOut)  * time.Second
+
 	//send direct
-	err = (*c.conn).SetWriteDeadline(time.Now().Add(time.Second * 2))
+	err := (*c.conn).SetWriteDeadline(time.Now().Add(writeTimeOut))
+	if err != nil {
+		return err
+	}
 	_, err = (*c.conn).Write(packet)
 	return err
 }
@@ -128,7 +132,7 @@ func (c *Client) ConnServer() error {
 	address := fmt.Sprintf("%s:%d", c.conf.Host, c.conf.Port)
 
 	//try connect server
-	timeOut := time.Duration(define.DefaultTcpDialTimeOut) * time.Second
+	timeOut := c.conf.ConnTimeOut * time.Second
 	conn, err := net.DialTimeout("tcp", address, timeOut)
 	if err != nil {
 		return err
@@ -221,6 +225,9 @@ func (c *Client) interInit() {
 	}
 	if c.conf.ConnTimeOut <= 0 {
 		c.conf.ConnTimeOut = time.Duration(define.DefaultTcpDialTimeOut)
+	}
+	if c.conf.WriteTimeOut <= 0 {
+		c.conf.WriteTimeOut = define.DefaultTcpWriteTimeOut
 	}
 
 	//start delay process

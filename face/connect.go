@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"sync"
 	"time"
 
@@ -55,10 +56,20 @@ func NewConnect(
 func (c *Connect) Quit() {
 	c.Lock()
 	defer c.Unlock()
-	if c.conn != nil {
-		c.conn.Close()
-		c.conn = nil
+	if c.conn == nil {
+		return
 	}
+
+	//close connect
+	c.conn.Close()
+	c.conn = nil
+
+	//release memory
+	c.tagMap = map[string]bool{}
+	c.propertyMap = map[string]interface{}{}
+
+	//gc opt
+	runtime.GC()
 }
 
 //get last active time

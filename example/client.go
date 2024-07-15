@@ -36,7 +36,7 @@ func ClientWrite(
 		if err != nil {
 			log.Println("ClientWrite failed, err:", err.Error())
 		}
-		time.Sleep(time.Second/5)
+		time.Sleep(time.Second/10)
 		times++
 		if testTimes > 0 && times >= testTimes {
 			break
