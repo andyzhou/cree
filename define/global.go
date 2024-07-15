@@ -11,8 +11,10 @@ const (
 	DefaultUnActiveSeconds = 60 //xx seconds
 	DefaultGCRate = 300 //xx seconds
 
-	DefaultBuckets = 3
-	DefaultBucketReadRate = 0.2 //xx seconds
+	//for bucket
+	DefaultBuckets = 5
+	DefaultBucketReadRate = 0.1 //xx seconds
+	DefaultBucketSendRate = 0.1 //xx seconds
 )
 
 //general

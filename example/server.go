@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,11 +22,19 @@ import (
  */
 
 func OnConnAdd(conn iface.IConnect) {
-	//log.Println("add conn:", conn)
+	log.Println("add conn:", conn)
 }
 
 func OnConnLost(conn iface.IConnect) {
-	//log.Println("lost conn:", conn)
+	log.Println("lost conn:", conn)
+}
+
+func OnReceiveMsg(conn iface.IConnect, req iface.IRequest) error {
+	if conn == nil || req == nil {
+		return errors.New("invalid parameter")
+	}
+	log.Printf("OnReceiveMsg, req:%v\n", req.GetMessage().GetId())
+	return nil
 }
 
 //cpu pprof
@@ -60,17 +69,19 @@ func main() {
 		Host: host,
 		Port: port,
 		TcpVersion: "tcp",
+		BucketReadRate: 0.05,
 	}
 
 	//start pprof
-	go runPProf()
+	//go runPProf()
 
 	//init server
 	server := cree.NewServer(conf)
 
 	//register hook for new tcp connect start and stop
-	server.SetOnConnStart(OnConnAdd)
-	server.SetOnConnStop(OnConnLost)
+	server.SetConnected(OnConnAdd)
+	server.SetDisconnected(OnConnLost)
+	server.SetReadMessage(OnReceiveMsg)
 
 	//setting for performance
 	//server.SetMaxConnects(100)
@@ -103,10 +114,10 @@ func NewTestApi() *TestApi {
 }
 
 func (*TestApi) Handle(req iface.IRequest) {
-	log.Println(
-		"TestApi::Handle, data:",
-		string(req.GetMessage().GetData()),
-	)
+	//log.Println(
+	//	"TestApi::Handle, data:",
+	//	string(req.GetMessage().GetData()),
+	//)
 	message := req.GetMessage()
 	req.GetConnect().SendMessage(
 		message.GetId(),

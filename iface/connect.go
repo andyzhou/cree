@@ -10,19 +10,23 @@ import "net"
 
  type IConnect interface {
 	//base
- 	Start()
- 	Stop()
+	Quit()
  	SendMessage(uint32, []byte) error
 	ReadMessage() (IRequest, error)
 
 	//get base
 	GetActiveTime() int64
  	GetConn() *net.TCPConn
- 	GetConnId() uint32
+ 	GetConnId() int64
  	GetRemoteAddr() net.Addr
+
+	//for tag
+	RemoveTags(tags ...string) error
+	GetTags() map[string]bool
+	SetTag(tags ...string) error
 
 	//for property
  	RemoveProperty(string)
- 	SetProperty(string,interface{}) bool
  	GetProperty(string)(interface{},error)
+	SetProperty(string,interface{}) bool
  }

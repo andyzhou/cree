@@ -79,7 +79,6 @@ func main() {
 		}
 
 		//spawn write testing
-		log.Println("client start")
 		go ClientWrite(client, testTimes, &wg)
 	}
 

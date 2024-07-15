@@ -1,9 +1,11 @@
 package testing
 
 import (
+	"fmt"
 	"github.com/andyzhou/cree"
 	"sync"
 	"testing"
+	"time"
 )
 
 var (
@@ -11,7 +13,23 @@ var (
 	port = 7800
 	clientMap = map[int]*cree.Client{}
 	locker = sync.RWMutex{}
+	cc *cree.Client
+	err error
 )
+
+//init
+func init() {
+	cc, err = connClient()
+	if err != nil {
+		panic(any(err))
+	}
+}
+
+//cb for client read
+func cbForRead(data []byte) bool {
+	//log.Println("client:CBForRead, data:", string(data))
+	return true
+}
 
 //connect client
 func connClient() (*cree.Client, error) {
@@ -22,19 +40,45 @@ func connClient() (*cree.Client, error) {
 	}
 	//init new client
 	client := cree.NewClient(clientCfg)
-	err := client.ConnServer()
+	client.SetCBForRead(cbForRead)
+	err = client.ConnServer()
 	return client, err
 }
 
 //test connect
 func TestConnect(t *testing.T) {
-	c, err := connClient()
-	if err != nil {
-		t.Errorf("test connect failed, err;%v\n", err.Error())
+	c, subErr := connClient()
+	if subErr != nil {
+		t.Errorf("test connect failed, err;%v\n", subErr.Error())
 		return
 	}
 	defer c.Close()
 	t.Logf("test connect success\n")
+}
+
+//test write
+func TestWrite(t *testing.T) {
+	messageId := uint32(1)
+	data := fmt.Sprintf("time:%d", time.Now().Unix())
+	subErr := cc.SendPacket(messageId, []byte(data))
+	t.Logf("test write, subErr:%v\n", subErr)
+}
+
+func BenchmarkWrite(b *testing.B) {
+	//send packet data
+	messageId := uint32(1)
+	succeed := 0
+	failed := 0
+	for i := 0; i < b.N; i++ {
+		data := fmt.Sprintf("time:%d", time.Now().Unix())
+		subErr := cc.SendPacket(messageId, []byte(data))
+		if subErr != nil {
+			failed++
+		}else{
+			succeed++
+		}
+	}
+	b.Logf("benchmark write, succeed:%v, failed:%v\n", succeed, failed)
 }
 
 func BenchmarkConnect(b *testing.B) {
@@ -43,11 +87,9 @@ func BenchmarkConnect(b *testing.B) {
 	locker.Lock()
 	locker.Unlock()
 	for i := 0; i < b.N; i++ {
-		c, err := connClient()
-		if err != nil {
-			b.Errorf("benmark connect failed, err:%v\n", err.Error())
+		c, subErr := connClient()
+		if subErr != nil {
 			failed++
-			break
 		}else{
 			clientMap[i] = c
 			succeed++

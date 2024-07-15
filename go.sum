@@ -2,3 +2,5 @@ github.com/andyzhou/tinylib v0.0.0-20240226084017-45a40d3defcb h1:fTpHOYP0iJcWUj
 github.com/andyzhou/tinylib v0.0.0-20240226084017-45a40d3defcb/go.mod h1:+gRhI0BpR4tOc2+ibW1nlnpPQ+dGqu9C1DS42vo7u0E=
 github.com/andyzhou/tinylib v0.0.0-20240226104635-ccca6a321ef0 h1:uYgcB9TUzKbsLln6iXOwvxIugYa5k1zKdloS2i7bbKk=
 github.com/andyzhou/tinylib v0.0.0-20240226104635-ccca6a321ef0/go.mod h1:+gRhI0BpR4tOc2+ibW1nlnpPQ+dGqu9C1DS42vo7u0E=
+github.com/andyzhou/tinylib v0.0.0-20240703022329-951a78a9b059 h1:gZxdrXYfzlkTuPJZPkFy7qQ33iKRcj/tfSbTG5PLbTY=
+github.com/andyzhou/tinylib v0.0.0-20240703022329-951a78a9b059/go.mod h1:YKvZB0RhvbGcDkErvI5Ul5ZdnMUwLnNuyfFlBNYADT8=

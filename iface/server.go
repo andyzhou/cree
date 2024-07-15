@@ -11,7 +11,6 @@ package iface
 	//general
  	Start()
  	Stop()
-	GetManager()IManager
 	GetPacket()IPacket
 
 	//setup
@@ -22,10 +21,7 @@ package iface
  	SetMaxConnects(int32)
 
  	//set hook
- 	SetOnConnStart(func(IConnect))
- 	SetOnConnStop(func(IConnect))
-
- 	//callback
- 	CallOnConnStart(IConnect)
- 	CallOnConnStop(IConnect)
+ 	SetConnected(func(IConnect))
+	SetDisconnected(func(IConnect))
+	SetGenConnId(func()int64)
  }

@@ -26,6 +26,13 @@ type ClientConf struct {
 	ConnTimeOut time.Duration
 }
 
+//son client
+type SonClient struct {
+	conn *net.Conn
+	connected bool
+	pack iface.IPacket
+}
+
 //face info
 type Client struct {
 	conf *ClientConf
@@ -37,8 +44,8 @@ type Client struct {
 
 //construct
 func NewClient(
-			conf *ClientConf,
-		) *Client {
+		conf *ClientConf,
+	) *Client {
 	//self init
 	this := &Client{
 		conf: conf,
@@ -87,6 +94,9 @@ func (c *Client) SetReadBuffSize(size int) bool {
 func (c *Client) SendPacket(
 	messageId uint32,
 	data []byte) error {
+	var (
+		err error
+	)
 	//check
 	if messageId < 0 || data == nil {
 		return errors.New("invalid parameter")
@@ -99,7 +109,8 @@ func (c *Client) SendPacket(
 	packet := c.packetData(messageId, data)
 
 	//send direct
-	_, err := (*c.conn).Write(packet)
+	err = (*c.conn).SetWriteDeadline(time.Now().Add(time.Second * 2))
+	_, err = (*c.conn).Write(packet)
 	return err
 }
 

@@ -3,15 +3,13 @@ package cree
 import (
 	"errors"
 	"fmt"
-	"log"
-	"net"
-	"runtime"
-	"sync"
-	"time"
-
 	"github.com/andyzhou/cree/define"
 	"github.com/andyzhou/cree/face"
 	"github.com/andyzhou/cree/iface"
+	"log"
+	"net"
+	"sync"
+	"sync/atomic"
 )
 
 /*
@@ -37,18 +35,19 @@ type ServerConf struct {
 type Server struct {
 	//basic
 	conf         *ServerConf
+	connId		 int64
+	connects     int32
 	needQuit     bool
 	littleEndian bool
 	packet       iface.IPacket
 	handler      iface.IHandler
+	bucketMap    map[int]iface.IBucket
 
 	//hook
-	onConnStart func(iface.IConnect)
-	onConnStop  func(iface.IConnect)
+	cbOfConnected    func(iface.IConnect)
+	cbOfGenConnId	 func()int64
 
 	//others
-	gcCloseChan chan bool
-	gcTicker *time.Ticker
 	wg sync.WaitGroup
 	sync.RWMutex
 }
@@ -90,9 +89,9 @@ func NewServer(configs ...*ServerConf) *Server {
 	//self init
 	this := &Server{
 		conf: conf,
+		bucketMap: map[int]iface.IBucket{},
 		packet: face.NewPacket(),
 		handler: face.NewHandler(),
-		gcCloseChan: make(chan bool, 1),
 	}
 
 	//inter init
@@ -109,14 +108,11 @@ func (s *Server) Start() {
 //stop
 func (s *Server) Stop() {
 	s.needQuit = true
-	face.GetManager().Clear()
-	s.gcCloseChan <- true
 	s.wg.Done()
 }
 
 func (s *Server) StopSkipWg() {
 	s.needQuit = true
-	face.GetManager().Clear()
 }
 
 //add router for one message id
@@ -128,11 +124,6 @@ func (s *Server) AddRouter(messageId uint32, router iface.IRouter) {
 //used for unsupported message id process
 func (s *Server) RegisterRedirect(router iface.IRouter) {
 	s.handler.RegisterRedirect(router)
-}
-
-//get conn manager
-func (s *Server) GetManager() iface.IManager {
-	return face.GetManager()
 }
 
 func (s *Server) GetPacket() iface.IPacket {
@@ -157,23 +148,35 @@ func (s *Server) SetMaxConnects(maxConnects int32) {
 }
 
 //set hook
-func (s *Server) SetOnConnStart(hook func(iface.IConnect)) {
-	s.onConnStart = hook
-}
-func (s *Server) SetOnConnStop(hook func(iface.IConnect)) {
-	s.onConnStop = hook
+//hook for read message for buckets
+func (s *Server) SetReadMessage(hook func(iface.IConnect, iface.IRequest) error) {
+	if hook == nil {
+		return
+	}
+	for _, v := range s.bucketMap {
+		v.SetCBForReadMessage(hook)
+	}
 }
 
-//call hook
-func (s *Server) CallOnConnStart(conn iface.IConnect) {
-	if s.onConnStart != nil {
-		s.onConnStart(conn)
+//hook for disconnected for buckets
+func (s *Server) SetDisconnected(hook func(iface.IConnect)) {
+	if hook == nil {
+		return
+	}
+	//apply to sub buckets
+	for _, v := range s.bucketMap {
+		v.SetCBForDisconnected(hook)
 	}
 }
-func (s *Server) CallOnConnStop(conn iface.IConnect) {
-	if s.onConnStop != nil {
-		s.onConnStop(conn)
-	}
+
+//hook for new connected for server
+func (s *Server) SetConnected(hook func(iface.IConnect)) {
+	s.cbOfConnected = hook
+}
+
+//hook for gen new connect id for server
+func (s *Server) SetGenConnId(hook func()int64) {
+	s.cbOfGenConnId = hook
 }
 
 ////////////////
@@ -183,7 +186,7 @@ func (s *Server) CallOnConnStop(conn iface.IConnect) {
 //watch new tcp connect
 func (s *Server) watchConn(listener *net.TCPListener) error {
 	var (
-		connId uint32
+		connId int64
 		m any = nil
 	)
 
@@ -206,11 +209,10 @@ func (s *Server) watchConn(listener *net.TCPListener) error {
 		}
 
 		//check max connects
-		realConnects := face.GetManager().GetLen()
 		if s.conf.MaxConnects > 0 &&
-			realConnects >= s.conf.MaxConnects {
+			s.connects >= s.conf.MaxConnects {
 			log.Printf("cree.server, connect up to max count, config max conn:%v, real conn:%v\n",
-				s.conf.MaxConnects, realConnects)
+				s.conf.MaxConnects, s.connects)
 			continue
 		}
 
@@ -222,53 +224,46 @@ func (s *Server) watchConn(listener *net.TCPListener) error {
 		}
 
 		//process new connect
-		connId++
+		//gen new connect id
+		if s.cbOfGenConnId != nil {
+			connId = s.cbOfGenConnId()
+		}else{
+			connId = atomic.AddInt64(&s.connId, 1)
+		}
+
+		//init new connect obj
 		connect := face.NewConnect(s, conn, connId, s.handler)
 
-		//add connect into manager
-		s.GetManager().Add(connect)
+		//call cb for new connected
+		if s.cbOfConnected != nil {
+			s.cbOfConnected(connect)
+		}
 
-		//push into bucket
-		face.GetBucket().AddConnect(connect)
+		//push into target bucket
+		bucket := s.getBucket(connId)
+		bucket.AddConnect(connect)
 	}
 	return nil
 }
 
-//cb for new connect list consume
-func (s *Server) cbForNewConnConsume(data interface{}) (interface{}, error) {
+//get bucket by connect id
+func (s *Server) getBucket(connId int64) iface.IBucket {
 	//check
-	if data == nil {
-		return nil, errors.New("invalid parameter")
+	if connId <= 0 {
+		return nil
 	}
-	conn, ok := data.(*face.Connect)
-	if !ok || conn == nil {
-		return nil, errors.New("data should be `*Connect` type")
-	}
-	//start connect
-	conn.Start()
-	return nil, nil
-}
 
-//run gc ticker
-func (s *Server) runGCTicker() {
-	//defer
-	defer func() {
-		s.gcTicker.Stop()
-	}()
+	//get target bucket id
+	bucketId := int(connId % int64(s.conf.Buckets))
 
-	//loop
-	for {
-		select {
-		case <- s.gcTicker.C:
-			{
-				runtime.GC()
-			}
-		case <- s.gcCloseChan:
-			{
-				return
-			}
-		}
+	//get target bucket
+	s.Lock()
+	defer s.Unlock()
+	v, ok := s.bucketMap[bucketId]
+	if ok && v != nil {
+		return v
 	}
+	return nil
 }
 
 //inter init
@@ -278,6 +273,7 @@ func (s *Server) interInit() bool {
 	addr, err := net.ResolveTCPAddr(s.conf.TcpVersion, address)
 	if err != nil {
 		log.Printf("cree.server, resolve tcp addr failed, err:%v", err.Error())
+		panic(any(err))
 		return false
 	}
 
@@ -285,20 +281,15 @@ func (s *Server) interInit() bool {
 	listener, subErr := net.ListenTCP(s.conf.TcpVersion, addr)
 	if subErr != nil {
 		log.Printf("cree.server, listen on %v failed, err:%v", address, subErr.Error())
+		panic(any(subErr))
 		return false
 	}
 
-	//init manager instance
-	face.GetManager()
-
-	//setup bucket
-	//face.GetBucket().SetCBForReadMessage()
-	face.GetBucket().CreateSonWorkers(s.conf.Buckets, s.conf.BucketReadRate)
-
-	//start gc ticker
-	gcRate := time.Duration(s.conf.GCRate) * time.Second
-	s.gcTicker = time.NewTicker(gcRate)
-	go s.runGCTicker()
+	//init inter buckets
+	for i := 0; i < s.conf.Buckets; i++ {
+		bucket := face.NewBucket(i)
+		s.bucketMap[i] = bucket
+	}
 
 	//watch tcp connect
 	go s.watchConn(listener)

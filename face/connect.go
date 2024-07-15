@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"sync"
 	"time"
@@ -22,10 +21,11 @@ import (
 type Connect struct {
 	tcpServer   iface.IServer //parent tcp server reference
 	packet      iface.IPacket //parent packet interface reference
-	conn        *net.TCPConn //socket tcp connect
+	conn        *net.TCPConn  //socket tcp connect
 	handler     iface.IHandler
+	tagMap      map[string]bool
 	propertyMap map[string]interface{}
-	connId      uint32
+	connId      int64
 	isClosed    bool
 	activeTime  int64 //last active timestamp
 	sync.RWMutex
@@ -35,7 +35,7 @@ type Connect struct {
 func NewConnect(
 		server iface.IServer,
 		conn *net.TCPConn,
-		connectId uint32,
+		connectId int64,
 		handler iface.IHandler,
 	) *Connect {
 	//self init
@@ -45,9 +45,20 @@ func NewConnect(
 		conn:conn,
 		connId:connectId,
 		handler:handler,
+		tagMap: map[string]bool{},
 		propertyMap:make(map[string]interface{}),
 	}
 	return this
+}
+
+//quit
+func (c *Connect) Quit() {
+	c.Lock()
+	defer c.Unlock()
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+	}
 }
 
 //get last active time
@@ -56,8 +67,7 @@ func (c *Connect) GetActiveTime() int64 {
 }
 
 //send message direct
-func (c *Connect) SendMessage(
-	messageId uint32, data []byte) error {
+func (c *Connect) SendMessage(messageId uint32, data []byte) error {
 	//basic check
 	if messageId <= 0 || data == nil {
 		return errors.New("invalid parameter")
@@ -87,40 +97,6 @@ func (c *Connect) SendMessage(
 	return err
 }
 
-//start
-func (c *Connect) Start() {
-	//start read and write goroutine
-	//go c.startRead()
-
-	//call hook of connect start
-	c.tcpServer.CallOnConnStart(c)
-}
-
-func (c *Connect) Stop() {
-	var (
-		m any = nil
-	)
-	if c.isClosed == true {
-		return
-	}
-
-	defer func() {
-		if err := recover(); err != m {
-			log.Println("cree:Connect::Stop, panic happened, err:", err)
-		}
-		//close connect
-		c.conn.Close()
-		c.isClosed = true
-		log.Printf("cree.Connect.stop, connId:%v\n", c.connId)
-	}()
-
-	//call hook of connect closed
-	c.tcpServer.CallOnConnStop(c)
-
-	//remove from manager
-	c.tcpServer.GetManager().Remove(c)
-}
-
 //read message
 func (c *Connect) ReadMessage() (iface.IRequest, error) {
 	//init header
@@ -142,8 +118,48 @@ func (c *Connect) GetConn() *net.TCPConn {
 }
 
 //get connect id
-func (c *Connect) GetConnId() uint32 {
+func (c *Connect) GetConnId() int64 {
 	return c.connId
+}
+
+//remove tags
+func (c *Connect) RemoveTags(tags ...string) error {
+	//check
+	if tags == nil || len(tags) <= 0 {
+		return errors.New("invalid parameter")
+	}
+
+	//del mark with locker
+	c.Lock()
+	defer c.Unlock()
+	for _, tag := range tags {
+		delete(c.tagMap, tag)
+	}
+	return nil
+}
+
+//get tags
+func (c *Connect) GetTags() map[string]bool {
+	//get all tags
+	c.Lock()
+	defer c.Unlock()
+	return c.tagMap
+}
+
+//set new tags
+func (c *Connect) SetTag(tags ...string) error {
+	//check
+	if tags == nil || len(tags) <= 0 {
+		return errors.New("invalid parameter")
+	}
+
+	//mark with locker
+	c.Lock()
+	defer c.Unlock()
+	for _, tag := range tags {
+		c.tagMap[tag] = true
+	}
+	return nil
 }
 
 //remove property
@@ -186,34 +202,32 @@ func (c *Connect) GetProperty(key string) (interface{}, error) {
 //private func
 //////////////
 
-//read data from client
-func (c *Connect) startRead() {
-	var (
-		err error
-		m any = nil
-	)
-
-	//defer function
-	defer func() {
-		if subErr := recover(); subErr != m {
-			log.Println("cree.connect.startRead panic, err:", subErr)
-		}
-		//stop connect
-		c.Stop()
-	}()
-
-	//init header
-	header := make([]byte, c.packet.GetHeadLen())
-
-	//read data in the loop
-	for {
-		//read one message
-		_, err = c.readOneMessage(header)
-		if err != nil {
-			break
-		}
-	}
-}
+////read data from client
+//func (c *Connect) startRead() {
+//	var (
+//		err error
+//		m any = nil
+//	)
+//
+//	//defer function
+//	defer func() {
+//		if subErr := recover(); subErr != m {
+//			log.Println("cree.connect.startRead panic, err:", subErr)
+//		}
+//	}()
+//
+//	//init header
+//	header := make([]byte, c.packet.GetHeadLen())
+//
+//	//read data in the loop
+//	for {
+//		//read one message
+//		_, err = c.readOneMessage(header)
+//		if err != nil {
+//			break
+//		}
+//	}
+//}
 
 //read one message
 func (c *Connect) readOneMessage(header []byte) (iface.IRequest, error) {
