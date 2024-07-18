@@ -52,6 +52,7 @@ func main() {
 		host = "127.0.0.1"
 		port = 7800
 		testTimes = 0
+		clients = 30
 	)
 
 	//wg
@@ -63,7 +64,7 @@ func main() {
 		Port: port,
 	}
 
-	for i := 0; i < 50; i++ {
+	for i := 0; i < clients; i++ {
 		//init new client
 		client := cree.NewClient(clientCfg)
 
