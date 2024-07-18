@@ -20,12 +20,6 @@ import (
  * - one bucket contain batch connects
  */
 
-//global variables
-var (
-	_bucket *Bucket
-	_bucketOnce sync.Once
-)
-
 //face info
 type Bucket struct {
 	//inter obj

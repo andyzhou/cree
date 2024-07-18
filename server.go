@@ -52,6 +52,20 @@ type Server struct {
 	sync.RWMutex
 }
 
+//global variable
+var (
+	_server *Server
+	_once *sync.Once
+)
+
+//get single instance
+func GetServer(configs ...*ServerConf) *Server {
+	_once.Do(func() {
+		_server = NewServer(configs...)
+	})
+	return _server
+}
+
  //construct
  //extraParas, first is tcp kind, second is max connects.
 func NewServer(configs ...*ServerConf) *Server {
