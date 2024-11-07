@@ -4,3 +4,5 @@ github.com/andyzhou/tinylib v0.0.0-20240226104635-ccca6a321ef0 h1:uYgcB9TUzKbsLl
 github.com/andyzhou/tinylib v0.0.0-20240226104635-ccca6a321ef0/go.mod h1:+gRhI0BpR4tOc2+ibW1nlnpPQ+dGqu9C1DS42vo7u0E=
 github.com/andyzhou/tinylib v0.0.0-20240703022329-951a78a9b059 h1:gZxdrXYfzlkTuPJZPkFy7qQ33iKRcj/tfSbTG5PLbTY=
 github.com/andyzhou/tinylib v0.0.0-20240703022329-951a78a9b059/go.mod h1:YKvZB0RhvbGcDkErvI5Ul5ZdnMUwLnNuyfFlBNYADT8=
+github.com/andyzhou/tinylib v0.0.0-20241002123948-d2b6b7ea44ba h1:8skfo6kuMdfR6HUintkF8NXPbkmuxfWc7FGyuwZ3iGA=
+github.com/andyzhou/tinylib v0.0.0-20241002123948-d2b6b7ea44ba/go.mod h1:6OE/psY8sbDadd2r3GD/ZqD+8iJJAYJeD3Hz1TYKFFA=
