@@ -2,13 +2,14 @@ package face
 
 import (
 	"errors"
-	"github.com/andyzhou/cree/define"
-	"github.com/andyzhou/cree/iface"
-	"github.com/andyzhou/tinylib/queue"
 	"log"
 	"runtime"
 	"sync"
 	"sync/atomic"
+
+	"github.com/andyzhou/cree/define"
+	"github.com/andyzhou/cree/iface"
+	"github.com/andyzhou/tinylib/queue"
 )
 
 /*

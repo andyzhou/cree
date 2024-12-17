@@ -16,18 +16,18 @@ import (
  * @mail <diudiu8848@163.com>
  */
 
- //inter macro define
- //DO NOT CHANGE THIS!!!
- const (
- 	PacketHeadSize = 12 //dataLen(4byte) + messageKind(4byte) + messageId(4byte)
- )
+//inter macro define
+//DO NOT CHANGE THIS!!!
+const (
+	PacketHeadSize = 12 //dataLen(4byte) + messageKind(4byte) + messageId(4byte)
+)
 
- //face info
- type Packet struct {
-	 maxPackSize int
-	 littleEndian bool
-	 byteOrder binary.ByteOrder
- }
+//face info
+type Packet struct {
+	maxPackSize  int
+	littleEndian bool
+	byteOrder    binary.ByteOrder
+}
 
  //construct
 func NewPacket() *Packet {

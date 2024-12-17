@@ -2,10 +2,11 @@ package testing
 
 import (
 	"fmt"
-	"github.com/andyzhou/cree"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/andyzhou/cree"
 )
 
 var (

@@ -8,11 +8,11 @@ import "github.com/andyzhou/cree/iface"
  * @mail <diudiu8848@163.com>
  */
 
- //face info
- type Request struct {
- 	conn iface.IConnect //connect for client
- 	message iface.IMessage //message from client
- }
+//face info
+type Request struct {
+	conn    iface.IConnect //connect for client
+	message iface.IMessage //message from client
+}
 
  //construct
 func NewRequest(conn iface.IConnect, message iface.IMessage) *Request {

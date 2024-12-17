@@ -3,13 +3,14 @@ package cree
 import (
 	"errors"
 	"fmt"
-	"github.com/andyzhou/cree/define"
-	"github.com/andyzhou/cree/face"
-	"github.com/andyzhou/cree/iface"
 	"log"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/andyzhou/cree/define"
+	"github.com/andyzhou/cree/face"
+	"github.com/andyzhou/cree/iface"
 )
 
 /*

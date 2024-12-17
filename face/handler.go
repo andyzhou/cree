@@ -14,14 +14,14 @@ import (
  * @mail <diudiu8848@163.com>
  */
 
- //face info
- type Handler struct {
- 	redirectRouter iface.IRouter
- 	handlerMap map[uint32]iface.IRouter //msgId -> iRouter
-    sync.RWMutex
- }
- 
- //construct
+//face info
+type Handler struct {
+	redirectRouter iface.IRouter
+	handlerMap     map[uint32]iface.IRouter //msgId -> iRouter
+	sync.RWMutex
+}
+
+//construct
 func NewHandler() *Handler {
 	//self init
 	this := &Handler{
