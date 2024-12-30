@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"github.com/andyzhou/cree/iface"
 	"log"
+	"math/rand"
 	"os"
 	"sync"
 	"time"
@@ -17,9 +20,13 @@ import (
  */
 
 //cb for client read
-func CBForRead(data []byte) bool {
-	log.Println("client:CBForRead, data:", string(data))
-	return true
+func CBForRead(msg iface.IMessage) error {
+	//check
+	if msg == nil {
+		return errors.New("invalid parameter")
+	}
+	log.Printf("client:CBForRead, msgId:%v, data:%v\n", msg.GetId(), string(msg.GetData()))
+	return nil
 }
 
 //test write
@@ -27,9 +34,12 @@ func ClientWrite(
 	client *cree.Client,
 	testTimes int,
 	wg *sync.WaitGroup) {
-	messageId := uint32(1)
+	messageId := uint32(0)
 	times := 1
+	maxMsgId := 4
 	for {
+		//setup message id
+		messageId = uint32(rand.Intn(maxMsgId) + 1)
 		//send packet data
 		data := fmt.Sprintf("time:%d", time.Now().Unix())
 		err := client.SendPacket(messageId, []byte(data))
@@ -52,7 +62,7 @@ func main() {
 		host = "127.0.0.1"
 		port = 7800
 		testTimes = 0
-		clients = 30
+		clients = 1
 	)
 
 	//wg

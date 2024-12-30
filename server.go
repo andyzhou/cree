@@ -26,6 +26,7 @@ type ServerConf struct {
 	TcpVersion   string //like tcp, tcp4, tcp6
 	MaxConnects  int32
 	MaxPackSize  int //pack data max size
+	ErrMsgId	 uint32
 	Buckets      int //bucket size for tcp connect
 	BucketReadRate float64 //bucket data read rate
 	LittleEndian bool
@@ -302,7 +303,7 @@ func (s *Server) interInit() bool {
 
 	//init inter buckets
 	for i := 0; i < s.conf.Buckets; i++ {
-		bucket := face.NewBucket(i)
+		bucket := face.NewBucket(i, s.conf.ErrMsgId)
 		s.bucketMap[i] = bucket
 	}
 

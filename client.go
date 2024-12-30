@@ -20,10 +20,10 @@ import (
 
 //client config
 type ClientConf struct {
-	Host string
-	Port int
+	Host         string
+	Port         int
 	ReadBuffSize int
-	ConnTimeOut time.Duration
+	ConnTimeOut  time.Duration
 	WriteTimeOut int //xx seconds
 }
 
@@ -39,7 +39,7 @@ type Client struct {
 	conf *ClientConf
 	conn *net.Conn
 	connected bool
-	cbForRead func(data []byte) bool
+	cbForRead func(msg iface.IMessage) error
 	pack iface.IPacket
 }
 
@@ -68,8 +68,7 @@ func (c *Client) Close() {
 }
 
 //set cb for read data
-func (c *Client) SetCBForRead(
-	cb func(data []byte) bool) bool {
+func (c *Client) SetCBForRead(cb func(msg iface.IMessage) error) bool {
 	if cb == nil {
 		return false
 	}
@@ -162,10 +161,40 @@ func (c *Client) packetData(
 	return byteData
 }
 
+//read one message
+func (c *Client) readMessage() (iface.IMessage, error) {
+	//init header
+	header := make([]byte, c.pack.GetHeadLen())
+
+	//read message header
+	size, err := (*c.conn).Read(header)
+	if err != nil || size <= 0 {
+		return nil, err
+	}
+
+	//unpack header
+	message, subErr := c.pack.UnPack(header)
+	if subErr != nil || message == nil {
+		return nil, subErr
+	}
+
+	//read real data and storage into message object
+	if message.GetLen() > 0 {
+		data := make([]byte, message.GetLen())
+		_, err = (*c.conn).Read(data)
+		if err != nil {
+			return nil, err
+		}
+		message.SetData(data)
+	}
+	return message, nil
+}
+
 //read process
 func (c *Client) runReadProcess() {
 	var (
-		buff = make([]byte, c.conf.ReadBuffSize)
+		//buff = make([]byte, c.conf.ReadBuffSize)
+		msg iface.IMessage
 		err error
 		m any = nil
 	)
@@ -186,14 +215,15 @@ func (c *Client) runReadProcess() {
 		}
 
 		//try read tcp data
-		_, err = (*c.conn).Read(buff)
-		if err != nil {
-			break
+		msg, err = c.readMessage()
+		if err != nil || msg == nil {
+			continue
 		}
 
 		//call cb
 		if c.cbForRead != nil {
-			c.cbForRead(buff)
+			//unpack data
+			c.cbForRead(msg)
 		}
 	}
 }

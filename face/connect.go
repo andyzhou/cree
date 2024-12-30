@@ -104,6 +104,8 @@ func (c *Connect) SendMessage(messageId uint32, data []byte) error {
 	}()
 
 	//direct send with locker
+	c.Lock()
+	defer c.Unlock()
 	_, err = (*c.conn).Write(byteData)
 	return err
 }
@@ -273,6 +275,11 @@ func (c *Connect) readOneMessage(header []byte) (iface.IRequest, error) {
 		}
 		message.SetData(data)
 	}
+
+	//defer update active time
+	defer func() {
+		c.activeTime = time.Now().Unix()
+	}()
 
 	//init client request
 	req := NewRequest(c, message)

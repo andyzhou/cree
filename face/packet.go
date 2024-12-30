@@ -48,7 +48,7 @@ func (f *Packet) SetMaxPackSize(size int) {
 	f.maxPackSize = size
 }
 
-//set little endian
+//set big or little endian
 func (f *Packet) SetLittleEndian(littleEndian bool) {
 	f.littleEndian = littleEndian
 	if littleEndian {

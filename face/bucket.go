@@ -2,6 +2,7 @@ package face
 
 import (
 	"errors"
+	"io"
 	"log"
 	"runtime"
 	"sync"
@@ -24,7 +25,9 @@ import (
 //face info
 type Bucket struct {
 	//inter obj
-	bucketId      int
+	bucketId       int
+	errMsgId       uint32
+
 	readMsgTicker *queue.Ticker //ticker for read connect msg
 	sendMsgQueue  *queue.List   //inter queue for send message
 
@@ -33,15 +36,16 @@ type Bucket struct {
 	connCount int64
 
 	//cb func
-	cbForReadMessage func(iface.IConnect, iface.IRequest) error
+	cbForReadMessage  func(iface.IConnect, iface.IRequest) error
 	cbForDisconnected func(iface.IConnect)
 	sync.RWMutex
 }
 
 //construct
-func NewBucket(id int) *Bucket {
+func NewBucket(id int, errMsgId uint32) *Bucket {
 	this := &Bucket{
 		bucketId: id,
+		errMsgId: errMsgId,
 		connMap: map[int64]iface.IConnect{},
 	}
 	this.interInit()
@@ -139,7 +143,7 @@ func (f *Bucket) AddConnect(conn iface.IConnect) error {
 	}
 
 	//check old connect
-	connId := int64(conn.GetConnId())
+	connId := conn.GetConnId()
 	oldConn, _ := f.GetConnect(connId)
 	if oldConn != nil {
 		return errors.New("conn already exists")
@@ -150,7 +154,15 @@ func (f *Bucket) AddConnect(conn iface.IConnect) error {
 	defer f.Unlock()
 	f.connMap[connId] = conn
 	atomic.AddInt64(&f.connCount, 1)
+	return nil
+}
 
+//set error message id
+func (f *Bucket) SetErrMsgId(id uint32) error {
+	if id < 0 {
+		return errors.New("invalid parameter")
+	}
+	f.errMsgId = id
 	return nil
 }
 
@@ -219,7 +231,9 @@ func (f *Bucket) cbForReadConnData() error {
 		return errors.New("no any active connections")
 	}
 
-	//loop read connect data
+	//loop read connect data with locker
+	f.Lock()
+	defer f.Unlock()
 	for connId, conn := range f.connMap {
 		//check connect
 		if connId <= 0 || conn == nil {
@@ -229,12 +243,23 @@ func (f *Bucket) cbForReadConnData() error {
 		//read message
 		req, err = conn.ReadMessage()
 		if err != nil {
-			//close connect and remove it
-			f.closeConn(conn)
+			if err == io.EOF {
+				//io read failed
+				//close connect and remove it
+				f.closeConn(conn, true)
+			}else{
+				//general error
+				log.Printf("bucket %v read conn %v data failed, err:%v\n",
+					f.bucketId, conn.GetConnId(), err.Error())
+
+				//send error to client connect
+				conn.SendMessage(f.errMsgId, []byte(err.Error()))
+			}
 			continue
 		}
 
-		//if bytes.Compare(f.router.GetHeartByte(), message) == 0 {
+		//heart beat check and opt
+		//if bytes.Compare(f.heartBytes, req.GetMessage().GetData()) == 0 {
 		//	//it's heart beat data
 		//	connObj.HeartBeat()
 		//	continue
@@ -245,7 +270,6 @@ func (f *Bucket) cbForReadConnData() error {
 			f.cbForReadMessage(conn, req)
 		}
 	}
-
 	return nil
 }
 
@@ -334,10 +358,16 @@ func (f *Bucket) checkSendCondition(
 }
 
 //close and remove connect
-func (f *Bucket) closeConn(conn iface.IConnect) error {
+func (f *Bucket) closeConn(conn iface.IConnect, skipLocker ...bool) error {
+	var (
+		skipLockerOpt bool
+	)
 	//check
 	if conn == nil {
 		return errors.New("invalid parameter")
+	}
+	if skipLocker != nil && len(skipLocker) > 0 {
+		skipLockerOpt = skipLocker[0]
 	}
 
 	//get key data
@@ -352,18 +382,21 @@ func (f *Bucket) closeConn(conn iface.IConnect) error {
 	}
 
 	//remove from run env
-	f.Lock()
-	defer f.Unlock()
+	if !skipLockerOpt {
+		f.Lock()
+		defer f.Unlock()
+	}
 	delete(f.connMap, connId)
-	atomic.AddInt64(&f.connCount, -1)
+
+	//update conn count
+	connCount := len(f.connMap)
+	atomic.StoreInt64(&f.connCount, int64(connCount))
 
 	//gc memory
 	if f.connCount <= 0 {
 		log.Printf("bucket %v, gc opt\n", f.bucketId)
-		atomic.StoreInt64(&f.connCount, 0)
 		runtime.GC()
 	}
-
 	return nil
 }
 

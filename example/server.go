@@ -70,6 +70,7 @@ func main() {
 		Port: port,
 		TcpVersion: "tcp",
 		BucketReadRate: 0.05,
+		ErrMsgId: 100,
 	}
 
 	//start pprof
@@ -91,6 +92,8 @@ func main() {
 
 	//register router for message
 	server.AddRouter(1, testApi)
+	server.AddRouter(2, testApi)
+	server.AddRouter(3, testApi)
 
 	fmt.Printf("start server on %s:%d\n", host, port)
 

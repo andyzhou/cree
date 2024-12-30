@@ -20,6 +20,9 @@ type IBucket interface {
 	//msg opt
 	SendMessage(req *define.SendMsgReq) error
 
+	//general
+	SetErrMsgId(id uint32) error
+
 	//set cb
 	SetCBForReadMessage(cb func(IConnect, IRequest) error)
 	SetCBForDisconnected(cb func(IConnect))
