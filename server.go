@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 
@@ -78,7 +79,7 @@ func NewServer(configs ...*ServerConf) *Server {
 		conf = configs[0]
 	}
 
-	//check conf
+	//check and set default conf
 	if conf == nil {
 		conf = &ServerConf{
 			Port: define.DefaultPort,
@@ -214,16 +215,13 @@ func (s *Server) watchConn(listener *net.TCPListener) error {
 	//defer
 	defer func() {
 		if subErr := recover(); subErr != m {
-			log.Println("cree.server, watch connect panic err:", subErr)
+			log.Printf("cree.server, watch connect panic err:%v, trace:%v\n",
+						subErr, string(debug.Stack()))
 		}
 	}()
 
 	//loop
 	for {
-		if s.needQuit {
-			break
-		}
-
 		//check max connects
 		if s.conf.MaxConnects > 0 &&
 			s.connects >= s.conf.MaxConnects {
@@ -245,6 +243,10 @@ func (s *Server) watchConn(listener *net.TCPListener) error {
 			connId = s.cbOfGenConnId()
 		}else{
 			connId = atomic.AddInt64(&s.connId, 1)
+		}
+		if connId <= 0 {
+			log.Println("can't gen new connect id")
+			continue
 		}
 
 		//init new connect obj

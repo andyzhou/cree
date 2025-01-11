@@ -62,7 +62,7 @@ func main() {
 		host = "127.0.0.1"
 		port = 7800
 		testTimes = 0
-		clients = 1
+		clients = 128
 	)
 
 	//wg
