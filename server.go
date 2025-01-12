@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"runtime"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -34,24 +35,28 @@ type ServerConf struct {
 	GCRate		 int //xx seconds
 }
 
- //face info
+//face info
 type Server struct {
 	//basic
 	conf         *ServerConf
-	connId		 int64
+	connId       int64
 	connects     int32
 	needQuit     bool
 	littleEndian bool
 	packet       iface.IPacket
 	handler      iface.IHandler
-	bucketMap    map[int]iface.IBucket
+	bucketMap    map[int]iface.IBucket  //idx -> IBucket
+	groupMap     map[int64]iface.IGroup //groupId -> IGroup
 
 	//hook
-	cbOfConnected    func(iface.IConnect)
-	cbOfGenConnId	 func()int64
+	cbOfReadMessage   func(iface.IConnect, iface.IRequest) error
+	cbOfConnected     func(iface.IConnect)
+	cbForDisconnected func(iface.IConnect)
+	cbOfGenConnId     func() int64
 
 	//others
-	wg sync.WaitGroup
+	wg          sync.WaitGroup
+	groupLocker sync.RWMutex
 	sync.RWMutex
 }
 
@@ -141,6 +146,70 @@ func (s *Server) AddRouter(messageId uint32, router iface.IRouter) {
 //used for unsupported message id process
 func (s *Server) RegisterRedirect(router iface.IRouter) {
 	s.handler.RegisterRedirect(router)
+}
+
+//del dynamic group
+func (s *Server) DelGroup(groupId int64) error {
+	//get group
+	group, err := s.GetGroup(groupId)
+	if err != nil || group == nil {
+		return err
+	}
+
+	//clean with locker
+	s.groupLocker.Lock()
+	defer s.groupLocker.Unlock()
+	group.Clear()
+	delete(s.groupMap, groupId)
+
+	if len(s.groupMap) <= 0 {
+		runtime.GC()
+	}
+	return nil
+}
+
+//get dynamic group
+func (s *Server) GetGroup(groupId int64) (iface.IGroup, error) {
+	//check
+	if groupId <= 0 {
+		return nil, errors.New("invalid parameter")
+	}
+
+	//get with locker
+	s.groupLocker.Lock()
+	defer s.groupLocker.Unlock()
+	group, ok := s.groupMap[groupId]
+	if ok && group != nil {
+		return group, nil
+	}
+	return nil, errors.New("no such group")
+}
+
+//create dynamic group
+//hookOfReadMsg -> func(groupId, IConnect, IRequest) error
+func (s *Server) CreateGroup(
+		groupId int64,
+		hookOfReadMsg func(int64, iface.IConnect, iface.IRequest) error,
+		readMsgRates ...float64,
+	) (iface.IGroup, error) {
+	//check
+	if groupId <= 0 || hookOfReadMsg == nil {
+		return nil, errors.New("invalid parameter")
+	}
+
+	//create with locker
+	s.groupLocker.Lock()
+	defer s.groupLocker.Unlock()
+
+	//create new group
+	group := face.NewGroup(groupId, readMsgRates...)
+	group.SetErrMsgId(s.conf.ErrMsgId)
+	group.SetCBForReadMessage(hookOfReadMsg)
+	group.SetCBForDisconnect(s.cbForDisconnected)
+
+	//sync into group map
+	s.groupMap[groupId] = group
+	return group, nil
 }
 
 func (s *Server) GetPacket() iface.IPacket {

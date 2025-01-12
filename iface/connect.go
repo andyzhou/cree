@@ -26,6 +26,8 @@ import "net"
 	SetTag(tags ...string) error
 
 	//for property
+	GetGroupId() int64
+	SetGroupId(groupId int64) error
  	RemoveProperty(string)
  	GetProperty(string)(interface{},error)
 	SetProperty(string,interface{}) bool

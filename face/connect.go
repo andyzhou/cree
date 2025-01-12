@@ -27,6 +27,7 @@ type Connect struct {
 	tagMap      map[string]bool
 	propertyMap map[string]interface{}
 	connId      int64
+	groupId		int64
 	isClosed    bool
 	activeTime  int64 //last active timestamp
 	sync.RWMutex
@@ -172,6 +173,20 @@ func (c *Connect) SetTag(tags ...string) error {
 	for _, tag := range tags {
 		c.tagMap[tag] = true
 	}
+	return nil
+}
+
+//get group id
+func (c *Connect) GetGroupId() int64 {
+	return c.groupId
+}
+
+//set group id
+func (c *Connect) SetGroupId(groupId int64) error {
+	if groupId < 0 {
+		return errors.New("invalid parameter")
+	}
+	c.groupId = groupId
 	return nil
 }
 

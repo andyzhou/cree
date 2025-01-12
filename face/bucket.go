@@ -240,6 +240,11 @@ func (f *Bucket) cbForReadConnData() error {
 			continue
 		}
 
+		//if conn has group id, skip it
+		if conn.GetGroupId() > 0 {
+			continue
+		}
+
 		//read message
 		req, err = conn.ReadMessage()
 		if err != nil {
