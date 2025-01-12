@@ -2,6 +2,7 @@ package testing
 
 import (
 	"fmt"
+	"github.com/andyzhou/cree/iface"
 	"sync"
 	"testing"
 	"time"
@@ -27,9 +28,9 @@ func init() {
 }
 
 //cb for client read
-func cbForRead(data []byte) bool {
+func cbForRead(msg iface.IMessage) error {
 	//log.Println("client:CBForRead, data:", string(data))
-	return true
+	return nil
 }
 
 //connect client
