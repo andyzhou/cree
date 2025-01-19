@@ -6,7 +6,7 @@ const (
 	DefaultTcpVersion      = "tcp"
 	DefaultTcpReadBuffSize = 1024
 
-	DefaultTcpDialTimeOut  = 10  //xx seconds
+	DefaultTcpDialTimeOut  = 5  //xx seconds
 	DefaultTcpWriteTimeOut = 2   //xx seconds
 	DefaultManagerTicker   = 60  //xx seconds
 	DefaultUnActiveSeconds = 60  //xx seconds

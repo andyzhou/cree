@@ -86,25 +86,19 @@ func BenchmarkWrite(b *testing.B) {
 func BenchmarkConnect(b *testing.B) {
 	succeed := 0
 	failed := 0
-	locker.Lock()
-	locker.Unlock()
-	for i := 0; i < b.N; i++ {
+	connArr := make([]*cree.Client, 0)
+	for i := 0; i < 100; i++ {
 		c, subErr := connClient()
 		if subErr != nil {
 			failed++
 		}else{
-			clientMap[i] = c
+			connArr = append(connArr, c)
 			succeed++
 		}
 	}
 	b.Logf("benchmark connect, succeed:%v, failed:%v\n", succeed, failed)
 	//close
-	for idx, v := range clientMap {
-		if v != nil {
-			v.Close()
-			v = nil
-		}
-		delete(clientMap, idx)
+	for _, v := range connArr {
+		v.Close()
 	}
-	clientMap = map[int]*cree.Client{}
 }

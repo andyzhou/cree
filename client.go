@@ -118,7 +118,12 @@ func (c *Client) SendPacket(
 }
 
 //connect server
-func (c *Client) ConnServer() error {
+func (c *Client) ConnServer(timeOuts ...time.Duration) error {
+	var (
+		timeOut time.Duration
+		conn net.Conn
+		err error
+	)
 	//check
 	if c.conf.Host == "" || c.conf.Port <= 0 {
 		return errors.New("host or port is invalid")
@@ -127,12 +132,25 @@ func (c *Client) ConnServer() error {
 		return nil
 	}
 
+	if timeOuts != nil && len(timeOuts) > 0 {
+		timeOut = timeOuts[0]
+	}else{
+		timeOut = c.conf.ConnTimeOut
+	}
+	if timeOut <= 0 {
+		timeOut = define.DefaultTcpDialTimeOut * time.Second
+	}
+	//log.Printf("confTimeout:%v, timeout:%v\n", c.conf.ConnTimeOut, timeOut)
+
 	//format address
 	address := fmt.Sprintf("%s:%d", c.conf.Host, c.conf.Port)
 
 	//try connect server
-	timeOut := c.conf.ConnTimeOut * time.Second
-	conn, err := net.DialTimeout("tcp", address, timeOut)
+	if timeOut > 0 {
+		conn, err = net.DialTimeout("tcp", address, timeOut)
+	}else{
+		conn, err = net.Dial("tcp", address)
+	}
 	if err != nil {
 		return err
 	}
@@ -254,7 +272,7 @@ func (c *Client) interInit() {
 		c.conf.ReadBuffSize = define.DefaultTcpReadBuffSize
 	}
 	if c.conf.ConnTimeOut <= 0 {
-		c.conf.ConnTimeOut = time.Duration(define.DefaultTcpDialTimeOut)
+		c.conf.ConnTimeOut = time.Second * define.DefaultTcpDialTimeOut
 	}
 	if c.conf.WriteTimeOut <= 0 {
 		c.conf.WriteTimeOut = define.DefaultTcpWriteTimeOut

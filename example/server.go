@@ -22,11 +22,11 @@ import (
  */
 
 func OnConnAdd(conn iface.IConnect) {
-	log.Println("add conn:", conn)
+	log.Println("add conn:", conn.GetConnId())
 }
 
 func OnConnLost(conn iface.IConnect) {
-	log.Println("lost conn:", conn)
+	log.Println("lost conn:", conn.GetConnId())
 }
 
 func OnReceiveMsg(conn iface.IConnect, req iface.IRequest) error {

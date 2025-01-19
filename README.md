@@ -8,6 +8,7 @@ Please see the code in `example` sub dir.
 ```
 cd testing
 go test -v
+go test -bench="Connect"
 go test -bench=.
 go test -bench=. -benchmem
 ```
