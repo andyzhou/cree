@@ -165,12 +165,12 @@ func (f *Group) closeConn(conn iface.IConnect) error {
 		f.cbForDisconnected(conn)
 	}
 
+	f.Lock()
+	defer f.Unlock()
 	delete(f.connMap, connId)
-
 	if len(f.connMap) <= 0 {
 		runtime.GC()
 	}
-
 	return nil
 }
 
@@ -233,6 +233,5 @@ func (f *Group) interInit() {
 	if f.readMsgRate <= 0 {
 		f.readMsgRate = define.DefaultBucketReadRate
 	}
-
 	f.initReadMsgTicker()
 }
