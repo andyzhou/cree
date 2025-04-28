@@ -23,16 +23,16 @@ import (
 
 //server config
 type ServerConf struct {
-	Host         string
-	Port         int
-	TcpVersion   string //like tcp, tcp4, tcp6
-	MaxConnects  int32
-	MaxPackSize  int //pack data max size
-	ErrMsgId	 uint32
-	Buckets      int //bucket size for tcp connect
+	Host           string
+	Port           int
+	TcpVersion     string //like tcp, tcp4, tcp6
+	MaxConnects    int32
+	MaxPackSize    int //pack data max size
+	ErrMsgId       uint32
+	Buckets        int     //bucket size for tcp connect
 	BucketReadRate float64 //bucket data read rate
-	LittleEndian bool
-	GCRate		 int //xx seconds
+	LittleEndian   bool
+	GCRate         int //xx seconds
 }
 
 //face info
@@ -63,7 +63,7 @@ type Server struct {
 //global variable
 var (
 	_server *Server
-	_once *sync.Once
+	_once   *sync.Once
 )
 
 //get single instance
@@ -75,7 +75,6 @@ func GetServer(configs ...*ServerConf) *Server {
 }
 
  //construct
- //extraParas, first is tcp kind, second is max connects.
 func NewServer(configs ...*ServerConf) *Server {
 	var (
 		conf *ServerConf
@@ -162,6 +161,7 @@ func (s *Server) DelGroup(groupId int64) error {
 	group.Clear()
 	delete(s.groupMap, groupId)
 
+	//gc opt
 	if len(s.groupMap) <= 0 {
 		runtime.GC()
 	}
@@ -197,17 +197,15 @@ func (s *Server) CreateGroup(
 		return nil, errors.New("invalid parameter")
 	}
 
-	//create with locker
-	s.groupLocker.Lock()
-	defer s.groupLocker.Unlock()
-
 	//create new group
 	group := face.NewGroup(groupId, readMsgRates...)
 	group.SetErrMsgId(s.conf.ErrMsgId)
 	group.SetCBForReadMessage(hookOfReadMsg)
 	group.SetCBForDisconnect(s.cbForDisconnected)
 
-	//sync into group map
+	//sync with locker
+	s.groupLocker.Lock()
+	defer s.groupLocker.Unlock()
 	s.groupMap[groupId] = group
 	return group, nil
 }
@@ -239,6 +237,8 @@ func (s *Server) SetReadMessage(hook func(iface.IConnect, iface.IRequest) error)
 	if hook == nil {
 		return
 	}
+	s.Lock()
+	defer s.Unlock()
 	for _, v := range s.bucketMap {
 		v.SetCBForReadMessage(hook)
 	}
@@ -250,6 +250,8 @@ func (s *Server) SetDisconnected(hook func(iface.IConnect)) {
 		return
 	}
 	//apply to sub buckets
+	s.Lock()
+	defer s.Unlock()
 	for _, v := range s.bucketMap {
 		v.SetCBForDisconnected(hook)
 	}
