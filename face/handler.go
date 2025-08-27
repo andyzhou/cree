@@ -55,6 +55,23 @@ func (f *Handler) DoMessageHandle(req iface.IRequest) error {
 	return nil
 }
 
+//remove router
+func (f *Handler) RemoveRouter(messageId uint32) error {
+	//check
+	if messageId < 0 {
+		return errors.New("invalid parameter")
+	}
+	f.Lock()
+	defer f.Unlock()
+	delete(f.handlerMap, messageId)
+
+	if len(f.handlerMap) <= 0 {
+		newHandlerMap := map[uint32]iface.IRouter{}
+		f.handlerMap = newHandlerMap
+	}
+	return nil
+}
+
 //add router
 func (f *Handler) AddRouter(messageId uint32, router iface.IRouter) error {
 	//basic check

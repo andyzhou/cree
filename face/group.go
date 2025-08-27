@@ -7,6 +7,7 @@ import (
 	"github.com/andyzhou/tinylib/queue"
 	"io"
 	"log"
+	"math/rand"
 	"runtime"
 	"sync"
 )
@@ -66,7 +67,7 @@ func (f *Group) Clear() {
 		conn.SetGroupId(0)
 		delete(f.connMap, k)
 	}
-	f.connMap = map[int64]iface.IConnect{}
+	f.connMap = nil
 	runtime.GC()
 }
 
@@ -104,11 +105,20 @@ func (f *Group) Quit(connections ...iface.IConnect) error {
 		delete(f.connMap, conn.GetConnId())
 	}
 
+	//rebuild rate check
+	rebuildRate := rand.Intn(define.FullPercent)
+	needRebuild := false
+	if rebuildRate > 0 && rebuildRate <= define.DefaultRebuildRate {
+		needRebuild = true
+	}
+
 	//check and gc opt
-	if len(f.connMap) <= 0 {
-		f.connMap = map[int64]iface.IConnect{}
-		runtime.GC()
-		log.Printf("group:%v, gc opt..\n", f.groupId)
+	if needRebuild || len(f.connMap) <= 0 {
+		newConnMap := map[int64]iface.IConnect{}
+		f.connMap = newConnMap
+		if len(f.connMap) <= 0 {
+			runtime.GC()
+		}
 	}
 	return nil
 }

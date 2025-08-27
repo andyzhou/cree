@@ -163,6 +163,8 @@ func (s *Server) DelGroup(groupId int64) error {
 
 	//gc opt
 	if len(s.groupMap) <= 0 {
+		newGroupMap := map[int64]iface.IGroup{}
+		s.groupMap = newGroupMap
 		runtime.GC()
 	}
 	return nil

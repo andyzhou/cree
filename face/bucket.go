@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"math/rand"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -397,10 +398,23 @@ func (f *Bucket) closeConn(conn iface.IConnect, skipLocker ...bool) error {
 	connCount := len(f.connMap)
 	atomic.StoreInt64(&f.connCount, int64(connCount))
 
+	//rebuild rate check
+	rebuildRate := rand.Intn(define.FullPercent)
+	needRebuild := false
+	if rebuildRate > 0 && rebuildRate <= define.DefaultRebuildRate {
+		needRebuild = true
+	}
+
 	//gc memory
-	if f.connCount <= 0 {
-		log.Printf("bucket %v, gc opt\n", f.bucketId)
-		runtime.GC()
+	if needRebuild || f.connCount <= 0 {
+		newConnMap := map[int64]iface.IConnect{}
+		for k, v := range f.connMap {
+			newConnMap[k] = v
+		}
+		f.connMap = newConnMap
+		if f.connCount <= 0 {
+			runtime.GC()
+		}
 	}
 	return nil
 }
@@ -410,7 +424,7 @@ func (f *Bucket) freeRunMemory() {
 	//free memory
 	f.Lock()
 	defer f.Unlock()
-	f.connMap = map[int64]iface.IConnect{}
+	f.connMap = nil
 	runtime.GC()
 }
 

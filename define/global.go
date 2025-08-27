@@ -11,6 +11,7 @@ const (
 	DefaultManagerTicker   = 60  //xx seconds
 	DefaultUnActiveSeconds = 60  //xx seconds
 	DefaultGCRate          = 300 //xx seconds
+	DefaultRebuildRate 	   = 10
 
 	//for bucket
 	DefaultBuckets        = 5
@@ -25,4 +26,5 @@ const (
 	HandlerQueueSizeMax     = 128
 	HandlerQueueChanSize    = 1024
 	PacketMaxSize           = 2048 //2KB
+	FullPercent				= 100
 )

@@ -149,6 +149,10 @@ func (c *Connect) RemoveTags(tags ...string) error {
 	for _, tag := range tags {
 		delete(c.tagMap, tag)
 	}
+	if len(c.tagMap) <= 0 {
+		newTagMap := map[string]bool{}
+		c.tagMap = newTagMap
+	}
 	return nil
 }
 
