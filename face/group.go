@@ -115,10 +115,10 @@ func (f *Group) Quit(connections ...iface.IConnect) error {
 	//check and gc opt
 	if needRebuild || len(f.connMap) <= 0 {
 		newConnMap := map[int64]iface.IConnect{}
-		f.connMap = newConnMap
-		if len(f.connMap) <= 0 {
-			runtime.GC()
+		for k, v := range f.connMap {
+			newConnMap[k] = v
 		}
+		f.connMap = newConnMap
 	}
 	return nil
 }
@@ -175,11 +175,22 @@ func (f *Group) closeConn(conn iface.IConnect) error {
 		f.cbForDisconnected(conn)
 	}
 
+	//rebuild rate check
+	rebuildRate := rand.Intn(define.FullPercent)
+	needRebuild := false
+	if rebuildRate > 0 && rebuildRate <= define.DefaultRebuildRate {
+		needRebuild = true
+	}
+
 	f.Lock()
 	defer f.Unlock()
 	delete(f.connMap, connId)
-	if len(f.connMap) <= 0 {
-		runtime.GC()
+	if needRebuild || len(f.connMap) <= 0 {
+		newConnMap := map[int64]iface.IConnect{}
+		for k, v := range f.connMap {
+			newConnMap[k] = v
+		}
+		f.connMap = newConnMap
 	}
 	return nil
 }

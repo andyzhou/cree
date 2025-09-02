@@ -11,7 +11,7 @@ const (
 	DefaultManagerTicker   = 60  //xx seconds
 	DefaultUnActiveSeconds = 60  //xx seconds
 	DefaultGCRate          = 300 //xx seconds
-	DefaultRebuildRate 	   = 10
+	DefaultRebuildRate 	   = 5
 
 	//for bucket
 	DefaultBuckets        = 5
