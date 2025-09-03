@@ -75,6 +75,24 @@ func (c *Connect) GetActiveTime() int64 {
 }
 
 //send message direct
+func (c *Connect) SendData(byteData []byte) error {
+	//check
+	if byteData == nil {
+		return errors.New("invalid parameter")
+	}
+
+	//defer update active time
+	defer func() {
+		c.activeTime = time.Now().Unix()
+	}()
+
+	//direct send with locker
+	c.Lock()
+	defer c.Unlock()
+	_, err := (*c.conn).Write(byteData)
+	return err
+}
+
 func (c *Connect) SendMessage(messageId uint32, data []byte) error {
 	//basic check
 	if messageId <= 0 || data == nil {

@@ -69,7 +69,7 @@ func main() {
 		Host: host,
 		Port: port,
 		TcpVersion: "tcp",
-		BucketReadRate: 0.05,
+		Buckets: 31,
 		ErrMsgId: 100,
 	}
 

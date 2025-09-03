@@ -29,6 +29,7 @@ type Bucket struct {
 	bucketId       int
 	errMsgId       uint32
 
+	packet        iface.IPacket //packet interface
 	readMsgTicker *queue.Ticker //ticker for read connect msg
 	sendMsgQueue  *queue.List   //inter queue for send message
 
@@ -47,6 +48,7 @@ func NewBucket(id int, errMsgId uint32) *Bucket {
 	this := &Bucket{
 		bucketId: id,
 		errMsgId: errMsgId,
+		packet: NewPacket(),
 		connMap: map[int64]iface.IConnect{},
 	}
 	this.interInit()
@@ -283,7 +285,6 @@ func (f *Bucket) cbForReadConnData() error {
 func (f *Bucket) cbForConsumerSendData(data interface{}) error {
 	var (
 		checkPass bool
-		err error
 	)
 	//check
 	if data == nil {
@@ -298,6 +299,12 @@ func (f *Bucket) cbForConsumerSendData(data interface{}) error {
 		return errors.New("invalid parameter")
 	}
 
+	//pack message
+	msgData, err := f.packMessage(req.MsgId, req.Data)
+	if err != nil {
+		return err
+	}
+
 	//loop send
 	for _, v := range f.connMap {
 		//check
@@ -310,7 +317,7 @@ func (f *Bucket) cbForConsumerSendData(data interface{}) error {
 			continue
 		}
 		//send message to target connect
-		err = v.SendMessage(req.MsgId, req.Data)
+		err = v.SendData(msgData)
 		if err != nil {
 			log.Printf("bucket.cbForConsumerSendData failed, err:%v\n", err.Error())
 		}
@@ -426,6 +433,18 @@ func (f *Bucket) freeRunMemory() {
 	defer f.Unlock()
 	f.connMap = nil
 	runtime.GC()
+}
+
+//pack message
+func (f *Bucket) packMessage(messageId uint32, data []byte) ([]byte, error) {
+	//create message
+	message := NewMessage()
+	message.SetId(messageId)
+	message.SetData(data)
+
+	//create message packet
+	byteData, err := f.packet.Pack(message)
+	return byteData, err
 }
 
 //init read message ticker

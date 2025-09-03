@@ -12,6 +12,7 @@ import "net"
 	//base
 	Quit()
  	SendMessage(uint32, []byte) error
+	SendData([]byte) error
 	ReadMessage() (IRequest, error)
 
 	//get base

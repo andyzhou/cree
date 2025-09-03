@@ -25,6 +25,7 @@ type Group struct {
 	groupId       int64
 	errMsgId      uint32
 	connMap       map[int64]iface.IConnect //reference conn map
+	packet        iface.IPacket //packet interface
 	readMsgTicker *queue.Ticker            //ticker for read connect msg
 	readMsgRate   float64
 
@@ -46,6 +47,7 @@ func NewGroup(groupId int64, readMsgRates ...float64) *Group {
 	this := &Group{
 		groupId: groupId,
 		readMsgRate: readMsgRate,
+		packet: NewPacket(),
 		connMap: map[int64]iface.IConnect{},
 	}
 	this.interInit()
@@ -73,19 +75,22 @@ func (f *Group) Clear() {
 
 //send message to all
 func (f *Group) SendMessage(msgId uint32, msg []byte) error {
-	var (
-		err error
-	)
 	//check
 	if msgId <= 0 || msg == nil || len(msg) <= 0 {
 		return errors.New("invalid parameter")
+	}
+
+	//pack message data
+	byteData, err := f.packMessage(msgId, msg)
+	if err != nil {
+		return err
 	}
 
 	//cast to all with locker
 	f.Lock()
 	defer f.Unlock()
 	for _, conn := range f.connMap {
-		err = conn.SendMessage(msgId, msg)
+		err = conn.SendData(byteData)
 	}
 	return err
 }
@@ -239,6 +244,18 @@ func (f *Group) cbForReadConnData() error {
 		}
 	}
 	return nil
+}
+
+//pack message
+func (f *Group) packMessage(messageId uint32, data []byte) ([]byte, error) {
+	//create message
+	message := NewMessage()
+	message.SetId(messageId)
+	message.SetData(data)
+
+	//create message packet
+	byteData, err := f.packet.Pack(message)
+	return byteData, err
 }
 
 //init read message ticker

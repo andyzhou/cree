@@ -23,16 +23,15 @@ import (
 
 //server config
 type ServerConf struct {
-	Host           string
-	Port           int
-	TcpVersion     string //like tcp, tcp4, tcp6
-	MaxConnects    int32
-	MaxPackSize    int //pack data max size
-	ErrMsgId       uint32
-	Buckets        int     //bucket size for tcp connect
-	BucketReadRate float64 //bucket data read rate
-	LittleEndian   bool
-	GCRate         int //xx seconds
+	Host         string
+	Port         int
+	TcpVersion   string //like tcp, tcp4, tcp6
+	MaxConnects  int32
+	MaxPackSize  int //pack data max size
+	ErrMsgId     uint32
+	Buckets      int //bucket size for tcp connect
+	LittleEndian bool
+	GCRate       int //xx seconds
 }
 
 //face info
@@ -102,9 +101,6 @@ func NewServer(configs ...*ServerConf) *Server {
 
 	if conf.Buckets <= 0 {
 		conf.Buckets = define.DefaultBuckets
-	}
-	if conf.BucketReadRate <= 0 {
-		conf.BucketReadRate = define.DefaultBucketReadRate
 	}
 
 	//self init
