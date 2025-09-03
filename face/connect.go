@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"runtime"
 	"sync"
 	"time"
 
@@ -66,11 +65,8 @@ func (c *Connect) Quit() {
 	c.conn = nil
 
 	//release memory
-	c.tagMap = map[string]bool{}
-	c.propertyMap = map[string]interface{}{}
-
-	//gc opt
-	runtime.GC()
+	c.tagMap = nil
+	c.propertyMap = nil
 }
 
 //get last active time
@@ -203,6 +199,10 @@ func (c *Connect) RemoveProperty(key string) {
 	c.Lock()
 	defer c.Unlock()
 	delete(c.propertyMap, key)
+	if len(c.propertyMap) <= 0 {
+		newPropertyMap := map[string]interface{}{}
+		c.propertyMap = newPropertyMap
+	}
 }
 
 //set property
@@ -233,33 +233,6 @@ func (c *Connect) GetProperty(key string) (interface{}, error) {
 ///////////////
 //private func
 //////////////
-
-////read data from client
-//func (c *Connect) startRead() {
-//	var (
-//		err error
-//		m any = nil
-//	)
-//
-//	//defer function
-//	defer func() {
-//		if subErr := recover(); subErr != m {
-//			log.Println("cree.connect.startRead panic, err:", subErr)
-//		}
-//	}()
-//
-//	//init header
-//	header := make([]byte, c.packet.GetHeadLen())
-//
-//	//read data in the loop
-//	for {
-//		//read one message
-//		_, err = c.readOneMessage(header)
-//		if err != nil {
-//			break
-//		}
-//	}
-//}
 
 //read one message
 func (c *Connect) readOneMessage(header []byte) (iface.IRequest, error) {
