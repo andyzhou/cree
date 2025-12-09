@@ -3,8 +3,10 @@ package cree
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/andyzhou/cree/define"
@@ -27,26 +29,20 @@ type ClientConf struct {
 	WriteTimeOut int //xx seconds
 }
 
-//son client
-type SonClient struct {
-	conn *net.Conn
-	connected bool
-	pack iface.IPacket
-}
-
 //face info
 type Client struct {
 	conf *ClientConf
-	conn *net.Conn
+	conn net.Conn
 	connected bool
 	cbForRead func(msg iface.IMessage) error
 	pack iface.IPacket
+	writeMu sync.Mutex
 }
 
 //construct
 func NewClient(
-		conf *ClientConf,
-	) *Client {
+	conf *ClientConf,
+) *Client {
 	//self init
 	this := &Client{
 		conf: conf,
@@ -61,8 +57,7 @@ func NewClient(
 //close connect
 func (c *Client) Close() {
 	if c.conn != nil {
-		(*c.conn).Close()
-		c.conn = nil
+		c.conn.Close()
 	}
 	c.connected = false
 }
@@ -94,13 +89,24 @@ func (c *Client) SetReadBuffSize(size int) bool {
 func (c *Client) SendPacket(
 	messageId uint32,
 	data []byte) error {
+	var (
+		m any = nil
+	)
 	//check
-	if messageId < 0 || data == nil {
+	if data == nil {
 		return errors.New("invalid parameter")
 	}
-	if c.conn == nil {
+	if !c.connected || c.conn == nil {
 		return errors.New("connect is nil")
 	}
+
+
+	//try catch panic
+	defer func() {
+		if err := recover(); err != m {
+			log.Printf("cree.client.SendPacket err:%v\n", err)
+		}
+	}()
 
 	//packet data
 	packet := c.packetData(messageId, data)
@@ -108,12 +114,19 @@ func (c *Client) SendPacket(
 	//set write timeout
 	writeTimeOut := time.Duration(c.conf.WriteTimeOut)  * time.Second
 
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	//send direct
-	err := (*c.conn).SetWriteDeadline(time.Now().Add(writeTimeOut))
+	err := c.conn.SetWriteDeadline(time.Now().Add(writeTimeOut))
 	if err != nil {
 		return err
 	}
-	_, err = (*c.conn).Write(packet)
+	_, err = c.conn.Write(packet)
+	c.conn.SetWriteDeadline(time.Time{}) // 清除 deadline
+	if err != nil {
+		log.Printf("cree.client.SendPacket failed err:%v\n", err)
+	}
 	return err
 }
 
@@ -156,7 +169,7 @@ func (c *Client) ConnServer(timeOuts ...time.Duration) error {
 	}
 
 	//sync conn
-	c.conn = &conn
+	c.conn = conn
 	c.connected = true
 
 	//spawn read process
@@ -185,8 +198,8 @@ func (c *Client) readMessage() (iface.IMessage, error) {
 	header := make([]byte, c.pack.GetHeadLen())
 
 	//read message header
-	size, err := (*c.conn).Read(header)
-	if err != nil || size <= 0 {
+	_, err := io.ReadFull(c.conn, header)
+	if err != nil {
 		return nil, err
 	}
 
@@ -199,7 +212,7 @@ func (c *Client) readMessage() (iface.IMessage, error) {
 	//read real data and storage into message object
 	if message.GetLen() > 0 {
 		data := make([]byte, message.GetLen())
-		_, err = (*c.conn).Read(data)
+		_, err = c.conn.Read(data)
 		if err != nil {
 			return nil, err
 		}
@@ -261,7 +274,7 @@ func (c *Client) cbForConsumer(
 		return errors.New("client connect is nil")
 	}
 	//write to connect
-	_, err := (*c.conn).Write(packBytes)
+	_, err := c.conn.Write(packBytes)
 	return err
 }
 
@@ -279,8 +292,5 @@ func (c *Client) interInit() {
 	}
 
 	//start delay process
-	sf := func() {
-		go c.runReadProcess()
-	}
-	time.AfterFunc(time.Second, sf)
+	go c.runReadProcess()
 }
