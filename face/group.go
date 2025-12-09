@@ -201,7 +201,7 @@ func (f *Group) closeConn(conn iface.IConnect) error {
 }
 
 //cb for read connect data
-func (f *Group) cbForReadConnData() error {
+func (f *Group) cbForReadConnData(inputs ...interface{}) error {
 	var (
 		req iface.IRequest
 		err error

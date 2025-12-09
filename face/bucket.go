@@ -224,7 +224,7 @@ func (f *Bucket) SetErrMsgId(id uint32) error {
 //}
 
 //cb for read connect data
-func (f *Bucket) cbForReadConnData() error {
+func (f *Bucket) cbForReadConnData(inputs ...interface{}) error {
 	var (
 		req iface.IRequest
 		err error
