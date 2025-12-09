@@ -41,8 +41,8 @@ type Client struct {
 
 //construct
 func NewClient(
-	conf *ClientConf,
-) *Client {
+		conf *ClientConf,
+	) *Client {
 	//self init
 	this := &Client{
 		conf: conf,
@@ -99,7 +99,6 @@ func (c *Client) SendPacket(
 	if !c.connected || c.conn == nil {
 		return errors.New("connect is nil")
 	}
-
 
 	//try catch panic
 	defer func() {
@@ -292,5 +291,8 @@ func (c *Client) interInit() {
 	}
 
 	//start delay process
-	go c.runReadProcess()
+	sf := func() {
+		go c.runReadProcess()
+	}
+	time.AfterFunc(time.Second * 2, sf)
 }
