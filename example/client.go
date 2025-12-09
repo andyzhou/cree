@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/andyzhou/cree/iface"
@@ -18,6 +19,11 @@ import (
  * @author <AndyZhou>
  * @mail <diudiu8848@163.com>
  */
+
+type Test2Json struct {
+	Name string `json:"name"`
+	Age  int `json:"age"`
+}
 
 //cb for client read
 func CBForRead(msg iface.IMessage) error {
@@ -41,8 +47,12 @@ func ClientWrite(
 		//setup message id
 		messageId = uint32(rand.Intn(maxMsgId) + 1)
 		//send packet data
-		data := fmt.Sprintf("time:%d", time.Now().Unix())
-		err := client.SendPacket(messageId, []byte(data))
+		jsonObj := Test2Json{
+			Name: fmt.Sprintf("%v", time.Now().Unix()),
+			Age:1,
+		}
+		data, _ := json.Marshal(jsonObj)
+		err := client.SendPacket(messageId, data)
 		if err != nil {
 			log.Println("ClientWrite failed, err:", err.Error())
 		}
@@ -62,7 +72,7 @@ func main() {
 		host = "127.0.0.1"
 		port = 7800
 		testTimes = 0
-		clients = 128
+		clients = 32
 	)
 
 	//wg

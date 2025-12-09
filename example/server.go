@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -21,6 +22,12 @@ import (
  * @mail <diudiu8848@163.com>
  */
 
+//json data
+type TestJson struct {
+	Name string `json:"name"`
+	Age  int `json:"age"`
+}
+
 func OnConnAdd(conn iface.IConnect) {
 	log.Println("add conn:", conn.GetConnId())
 }
@@ -34,6 +41,12 @@ func OnReceiveMsg(conn iface.IConnect, req iface.IRequest) error {
 		return errors.New("invalid parameter")
 	}
 	log.Printf("OnReceiveMsg, req:%v\n", req.GetMessage().GetId())
+	reqData := req.GetMessage().GetData()
+	testJson := &TestJson{}
+	err := json.Unmarshal(reqData, &testJson)
+	if err == nil {
+		log.Printf("testJson:%v\n", testJson)
+	}
 	return nil
 }
 
