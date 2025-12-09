@@ -241,12 +241,15 @@ func (c *Client) runReadProcess() {
 	for {
 		//check connect
 		if c.conn == nil {
-			break
+			continue
 		}
 
 		//try read tcp data
 		msg, err = c.readMessage()
-		if err != nil || msg == nil {
+		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				break
+			}
 			continue
 		}
 
@@ -290,9 +293,6 @@ func (c *Client) interInit() {
 		c.conf.WriteTimeOut = define.DefaultTcpWriteTimeOut
 	}
 
-	//start delay process
-	sf := func() {
-		go c.runReadProcess()
-	}
-	time.AfterFunc(time.Second * 2, sf)
+	//start read process
+	go c.runReadProcess()
 }
