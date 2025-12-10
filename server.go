@@ -23,15 +23,17 @@ import (
 
 //server config
 type ServerConf struct {
-	Host         string
-	Port         int
-	TcpVersion   string //like tcp, tcp4, tcp6
-	MaxConnects  int32
-	MaxPackSize  int //pack data max size
-	ErrMsgId     uint32
-	Buckets      int //bucket size for tcp connect
-	LittleEndian bool
-	GCRate       int //xx seconds
+	Host           string
+	Port           int
+	TcpVersion     string //like tcp, tcp4, tcp6
+	MaxConnects    int32
+	MaxPackSize    int //pack data max size
+	ErrMsgId       uint32
+	Buckets        int //bucket size for tcp connect
+	ReadTickerRate float64
+	SendTickerRate float64
+	LittleEndian   bool
+	GCRate         int //xx seconds
 }
 
 //face info

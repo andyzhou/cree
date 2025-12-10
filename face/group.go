@@ -25,9 +25,11 @@ type Group struct {
 	groupId       int64
 	errMsgId      uint32
 	connMap       map[int64]iface.IConnect //reference conn map
-	packet        iface.IPacket //packet interface
+	packet        iface.IPacket            //packet interface
 	readMsgTicker *queue.Ticker            //ticker for read connect msg
 	readMsgRate   float64
+	sendChan      chan []byte
+	closeChan     chan bool
 
 	//cb func
 	cbForReadMessage  func(int64, iface.IConnect, iface.IRequest) error
@@ -49,6 +51,8 @@ func NewGroup(groupId int64, readMsgRates ...float64) *Group {
 		readMsgRate: readMsgRate,
 		packet: NewPacket(),
 		connMap: map[int64]iface.IConnect{},
+		sendChan: make(chan []byte, define.DefaultSmallChanSize),
+		closeChan: make(chan bool, 1),
 	}
 	this.interInit()
 	return this
@@ -71,28 +75,6 @@ func (f *Group) Clear() {
 	}
 	f.connMap = nil
 	runtime.GC()
-}
-
-//send message to all
-func (f *Group) SendMessage(msgId uint32, msg []byte) error {
-	//check
-	if msgId <= 0 || msg == nil || len(msg) <= 0 {
-		return errors.New("invalid parameter")
-	}
-
-	//pack message data
-	byteData, err := f.packMessage(msgId, msg)
-	if err != nil {
-		return err
-	}
-
-	//cast to all with locker
-	f.Lock()
-	defer f.Unlock()
-	for _, conn := range f.connMap {
-		err = conn.SendData(byteData)
-	}
-	return err
 }
 
 //quit group
@@ -126,6 +108,24 @@ func (f *Group) Quit(connections ...iface.IConnect) error {
 		f.connMap = newConnMap
 	}
 	return nil
+}
+
+//send message to all
+func (f *Group) SendMessage(msgId uint32, msg []byte) error {
+	//check
+	if msgId <= 0 || msg == nil || len(msg) <= 0 {
+		return errors.New("invalid parameter")
+	}
+
+	//pack message data
+	byteData, err := f.packMessage(msgId, msg)
+	if err != nil {
+		return err
+	}
+
+	//send to chan
+	f.sendChan <- byteData
+	return err
 }
 
 //join group
@@ -265,6 +265,49 @@ func (f *Group) initReadMsgTicker() {
 	f.readMsgTicker.SetCheckerCallback(f.cbForReadConnData)
 }
 
+//send real data
+func (f *Group) sendRealData(byteData []byte) {
+	//check
+	if byteData == nil || len(f.connMap) <= 0 {
+		return
+	}
+
+	//cast to all with locker
+	f.Lock()
+	defer f.Unlock()
+	for _, conn := range f.connMap {
+		conn.SendData(byteData)
+	}
+}
+
+//run send process
+func (f *Group) runSendProcess() {
+	var (
+		data []byte
+		ok bool
+		m  any = nil
+	)
+
+	defer func() {
+		if err := recover(); err != m {
+			log.Printf("group.runSendProcess panic, err:%v\n", err)
+		}
+		close(f.sendChan)
+	}()
+
+	//loop
+	for {
+		select {
+		case data, ok = <- f.sendChan:
+			if ok && data != nil {
+				f.sendRealData(data)
+			}
+		case <- f.closeChan:
+			return
+		}
+	}
+}
+
 //inter init
 func (f *Group) interInit() {
 	//check and set read message rate
@@ -272,4 +315,7 @@ func (f *Group) interInit() {
 		f.readMsgRate = define.DefaultBucketReadRate
 	}
 	f.initReadMsgTicker()
+
+	//run send process
+	go f.runSendProcess()
 }

@@ -29,14 +29,21 @@ type ClientConf struct {
 	WriteTimeOut int //xx seconds
 }
 
+type clientPacket struct {
+	messageId uint32
+	data      []byte
+}
+
 //face info
 type Client struct {
-	conf *ClientConf
-	conn net.Conn
-	connected bool
-	cbForRead func(msg iface.IMessage) error
-	pack iface.IPacket
-	writeMu sync.Mutex
+	conf       *ClientConf
+	conn       net.Conn
+	connected  bool
+	cbForRead  func(msg iface.IMessage) error
+	packetChan chan clientPacket
+	closeChan  chan bool
+	pack       iface.IPacket
+	writeMu    sync.Mutex
 }
 
 //construct
@@ -47,6 +54,8 @@ func NewClient(
 	this := &Client{
 		conf: conf,
 		pack: face.NewPacket(),
+		packetChan: make(chan clientPacket, define.DefaultChanSize),
+		closeChan: make(chan bool, 1),
 	}
 
 	//inter init
@@ -58,6 +67,7 @@ func NewClient(
 func (c *Client) Close() {
 	if c.conn != nil {
 		c.conn.Close()
+		close(c.closeChan)
 	}
 	c.connected = false
 }
@@ -107,26 +117,13 @@ func (c *Client) SendPacket(
 		}
 	}()
 
-	//packet data
-	packet := c.packetData(messageId, data)
-
-	//set write timeout
-	writeTimeOut := time.Duration(c.conf.WriteTimeOut)  * time.Second
-
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
-
-	//send direct
-	err := c.conn.SetWriteDeadline(time.Now().Add(writeTimeOut))
-	if err != nil {
-		return err
+	//send to chan
+	cp := clientPacket{
+		messageId: messageId,
+		data: data,
 	}
-	_, err = c.conn.Write(packet)
-	c.conn.SetWriteDeadline(time.Time{}) // 清除 deadline
-	if err != nil {
-		log.Printf("cree.client.SendPacket failed err:%v\n", err)
-	}
-	return err
+	c.packetChan <- cp
+	return nil
 }
 
 //connect server
@@ -220,10 +217,50 @@ func (c *Client) readMessage() (iface.IMessage, error) {
 	return message, nil
 }
 
+func (c *Client) sendRealPacket(pack *clientPacket) error {
+	var (
+		m any = nil
+	)
+	//check
+	if pack == nil {
+		return errors.New("invalid parameter")
+	}
+	if !c.connected || c.conn == nil {
+		return errors.New("connect is nil")
+	}
+
+	//try catch panic
+	defer func() {
+		if err := recover(); err != m {
+			log.Printf("cree.client.SendPacket err:%v\n", err)
+		}
+	}()
+
+	//packet data
+	packet := c.packetData(pack.messageId, pack.data)
+
+	//set write timeout
+	writeTimeOut := time.Duration(c.conf.WriteTimeOut)  * time.Second
+
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	//send direct
+	err := c.conn.SetWriteDeadline(time.Now().Add(writeTimeOut))
+	if err != nil {
+		return err
+	}
+	_, err = c.conn.Write(packet)
+	c.conn.SetWriteDeadline(time.Time{}) // clear deadline
+	if err != nil {
+		log.Printf("cree.client.sendRealPacket failed err:%v\n", err)
+	}
+	return err
+}
+
 //read process
 func (c *Client) runReadProcess() {
 	var (
-		//buff = make([]byte, c.conf.ReadBuffSize)
 		msg iface.IMessage
 		err error
 		m any = nil
@@ -257,6 +294,36 @@ func (c *Client) runReadProcess() {
 		if c.cbForRead != nil {
 			//unpack data
 			c.cbForRead(msg)
+		}
+	}
+}
+
+//send process
+func (c *Client) runSendProcess() {
+	var (
+		cp clientPacket
+		ok bool
+		m any = nil
+	)
+
+	//defer opt
+	defer func() {
+		if err := recover(); err != m {
+			log.Printf("client.runSendProcess panic, err:%v\n", err)
+		}
+		close(c.packetChan)
+	}()
+
+	//loop
+	for {
+		select {
+		case cp, ok = <- c.packetChan:
+			if ok && &cp != nil {
+				//send real packet
+				c.sendRealPacket(&cp)
+			}
+		case <- c.closeChan:
+			return
 		}
 	}
 }
@@ -295,4 +362,7 @@ func (c *Client) interInit() {
 
 	//start read process
 	go c.runReadProcess()
+
+	//start send process
+	go c.runSendProcess()
 }

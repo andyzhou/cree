@@ -28,6 +28,8 @@ type Bucket struct {
 	//inter obj
 	bucketId       int
 	errMsgId       uint32
+	readTickerRate float64
+	sendTickerRate float64
 
 	packet        iface.IPacket //packet interface
 	readMsgTicker *queue.Ticker //ticker for read connect msg
@@ -44,12 +46,28 @@ type Bucket struct {
 }
 
 //construct
-func NewBucket(id int, errMsgId uint32) *Bucket {
+func NewBucket(id int, errMsgId uint32, tickerRates ...float64) *Bucket {
+	var (
+		readTickerRate float64
+		sendTickerRate float64
+	)
+	//check ticker rates
+	ratesLen := len(tickerRates)
+	if ratesLen > 1 {
+		readTickerRate = tickerRates[0]
+		sendTickerRate = tickerRates[1]
+	}else if ratesLen > 0 {
+		readTickerRate = tickerRates[0]
+	}
+
+	//self init
 	this := &Bucket{
 		bucketId: id,
 		errMsgId: errMsgId,
 		packet: NewPacket(),
 		connMap: map[int64]iface.IConnect{},
+		readTickerRate: readTickerRate,
+		sendTickerRate: sendTickerRate,
 	}
 	this.interInit()
 	return this
@@ -450,19 +468,23 @@ func (f *Bucket) packMessage(messageId uint32, data []byte) ([]byte, error) {
 //init read message ticker
 func (f *Bucket) initReadMsgTicker() {
 	//get connect read msg rate
-	readMsgRate := define.DefaultBucketReadRate
+	if f.readTickerRate <= 0 {
+		f.readTickerRate = define.DefaultBucketReadRate
+	}
 
 	//init read msg ticker
-	f.readMsgTicker = queue.NewTicker(readMsgRate)
+	f.readMsgTicker = queue.NewTicker(f.readTickerRate)
 	f.readMsgTicker.SetCheckerCallback(f.cbForReadConnData)
 }
 
 //init send message queue and consumer
 func (f *Bucket) initSendMsgConsumer() {
 	//get send msg rate
-	sendMsgRate := define.DefaultBucketSendRate
+	if f.sendTickerRate <= 0 {
+		f.sendTickerRate = define.DefaultBucketSendRate
+	}
 	f.sendMsgQueue = queue.NewList()
-	f.sendMsgQueue.SetConsumer(f.cbForConsumerSendData, sendMsgRate)
+	f.sendMsgQueue.SetConsumer(f.cbForConsumerSendData, f.sendTickerRate)
 }
 
 //inter init

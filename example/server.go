@@ -84,6 +84,8 @@ func main() {
 		TcpVersion: "tcp",
 		Buckets: 31,
 		ErrMsgId: 100,
+		ReadTickerRate: 0.05,
+		SendTickerRate: 0.05,
 	}
 
 	//start pprof

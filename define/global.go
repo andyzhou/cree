@@ -12,6 +12,8 @@ const (
 	DefaultUnActiveSeconds = 60  //xx seconds
 	DefaultGCRate          = 300 //xx seconds
 	DefaultRebuildRate 	   = 5
+	DefaultChanSize		   = 1024
+	DefaultSmallChanSize   = 256
 
 	//for bucket
 	DefaultBuckets        = 5
