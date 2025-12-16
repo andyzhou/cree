@@ -94,14 +94,6 @@ func main() {
 	//init server
 	server := cree.NewServer(conf)
 
-	//register hook for new tcp connect start and stop
-	server.SetConnected(OnConnAdd)
-	server.SetDisconnected(OnConnLost)
-	server.SetReadMessage(OnReceiveMsg)
-
-	//setting for performance
-	//server.SetMaxConnects(100)
-
 	//init cb api
 	testApi := NewTestApi()
 
@@ -109,6 +101,14 @@ func main() {
 	server.AddRouter(1, testApi)
 	server.AddRouter(2, testApi)
 	server.AddRouter(3, testApi)
+
+	//register hook for new tcp connect start and stop
+	server.SetConnected(OnConnAdd)
+	server.SetDisconnected(OnConnLost)
+	//server.SetReadMessage(OnReceiveMsg)
+
+	//setting for performance
+	//server.SetMaxConnects(100)
 
 	fmt.Printf("start server on %s:%d\n", host, port)
 
