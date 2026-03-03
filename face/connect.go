@@ -41,13 +41,13 @@ func NewConnect(
 	) *Connect {
 	//self init
 	this := &Connect{
-		tcpServer:server,
-		packet: server.GetPacket(),
-		conn:conn,
-		connId:connectId,
-		handler:handler,
-		tagMap: map[string]bool{},
-		propertyMap:make(map[string]interface{}),
+		tcpServer:   server,
+		packet:      server.GetPacket(),
+		conn:        conn,
+		connId:      connectId,
+		handler:     handler,
+		tagMap:      map[string]bool{},
+		propertyMap: make(map[string]interface{}),
 	}
 	return this
 }

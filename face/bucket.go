@@ -62,10 +62,10 @@ func NewBucket(id int, errMsgId uint32, tickerRates ...float64) *Bucket {
 
 	//self init
 	this := &Bucket{
-		bucketId: id,
-		errMsgId: errMsgId,
-		packet: NewPacket(),
-		connMap: map[int64]iface.IConnect{},
+		bucketId:       id,
+		errMsgId:       errMsgId,
+		packet:         NewPacket(),
+		connMap:        map[int64]iface.IConnect{},
 		readTickerRate: readTickerRate,
 		sendTickerRate: sendTickerRate,
 	}
@@ -129,8 +129,8 @@ func (f *Bucket) GetConnect(connId int64) (iface.IConnect, error) {
 	}
 
 	//get target with locker
-	f.Lock()
-	defer f.Unlock()
+	f.RLock()
+	defer f.RUnlock()
 	conn, ok := f.connMap[connId]
 	if ok && conn != nil {
 		return conn, nil

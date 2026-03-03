@@ -56,9 +56,9 @@ type Server struct {
 	cbOfGenConnId     func() int64
 
 	//others
-	wg          sync.WaitGroup
-	groupLocker sync.RWMutex
-	sync.RWMutex
+	wg           sync.WaitGroup
+	groupLocker  sync.RWMutex
+	bucketLocker sync.RWMutex
 }
 
 //global variable
@@ -237,8 +237,8 @@ func (s *Server) SetReadMessage(hook func(iface.IConnect, iface.IRequest) error)
 	if hook == nil {
 		return
 	}
-	s.Lock()
-	defer s.Unlock()
+	s.bucketLocker.Lock()
+	defer s.bucketLocker.Unlock()
 	for _, v := range s.bucketMap {
 		v.SetCBForReadMessage(hook)
 	}
@@ -250,8 +250,8 @@ func (s *Server) SetDisconnected(hook func(iface.IConnect)) {
 		return
 	}
 	//apply to sub buckets
-	s.Lock()
-	defer s.Unlock()
+	s.bucketLocker.Lock()
+	defer s.bucketLocker.Unlock()
 	for _, v := range s.bucketMap {
 		v.SetCBForDisconnected(hook)
 	}
@@ -346,8 +346,8 @@ func (s *Server) getBucket(connId int64) iface.IBucket {
 	bucketId := int(connId % int64(s.conf.Buckets))
 
 	//get target bucket
-	s.Lock()
-	defer s.Unlock()
+	s.bucketLocker.RLock()
+	defer s.bucketLocker.RUnlock()
 	v, ok := s.bucketMap[bucketId]
 	if ok && v != nil {
 		return v

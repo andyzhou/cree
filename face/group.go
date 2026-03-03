@@ -47,12 +47,12 @@ func NewGroup(groupId int64, readMsgRates ...float64) *Group {
 	}
 
 	this := &Group{
-		groupId: groupId,
+		groupId:     groupId,
 		readMsgRate: readMsgRate,
-		packet: NewPacket(),
-		connMap: map[int64]iface.IConnect{},
-		sendChan: make(chan []byte, define.DefaultSmallChanSize),
-		closeChan: make(chan bool, 1),
+		packet:      NewPacket(),
+		connMap:     map[int64]iface.IConnect{},
+		sendChan:    make(chan []byte, define.DefaultSmallChanSize),
+		closeChan:   make(chan bool, 1),
 	}
 	this.interInit()
 	return this
